@@ -1,0 +1,38 @@
+name: "ddos-martummai"
+arch: "amd64"
+platform: "linux"
+version: "0.1.0"
+section: "admin"
+priority: "optional"
+maintainer: "Admin <admin@example.com>"
+description: "DDoS Detection System Service"
+vendor: "261492Project"
+license: "MIT"
+
+contents:
+  # Source code
+  - src: ./src/
+    dst: /opt/ddos-martummai/src/
+  - src: ./pyproject.toml
+    dst: /opt/ddos-martummai/pyproject.toml
+  - src: ./uv.lock
+    dst: /opt/ddos-martummai/uv.lock
+  
+  # Service file
+  - src: ./system/ddos-martummai.service
+    dst: /lib/systemd/system/ddos-martummai.service
+  
+  # Default Config
+  - src: ./config/config.yml
+    dst: /etc/ddos-martummai/config.yml
+    type: config
+
+# Scripts
+scripts:
+  postinstall: ./scripts/postinstall.sh
+  preremove: ./scripts/preremove.sh
+
+depends:
+  - libpcap-dev
+  - iptables
+  - git

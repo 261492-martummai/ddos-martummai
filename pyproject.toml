@@ -1,0 +1,63 @@
+[project]
+name = "ddos-martummai"
+version = "0.1.0"
+description = "DDoS Detection System Service"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "cicflowmeter>=0.5.0",
+    "click>=8.3.1",
+    "joblib>=1.5.3",
+    "pandas>=3.0.0",
+    "psutil>=7.2.1",
+    "pyyaml>=6.0.3",
+    "questionary>=2.1.1",
+    "rich>=14.2.0",
+    "scikit-learn>=1.8.0",
+]
+
+[project.scripts]
+ddos-guard = "ddos_martummai.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/ddos_martummai"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "src/ddos_martummai/models/*.joblib"
+]
+
+[dependency-groups]
+dev = [
+    "bandit>=1.9.3",
+    "mypy>=1.19.1",
+    "pytest>=9.0.2",
+    "pytest-cov>=7.0.0",
+    "ruff>=0.14.14",
+    "types-pyyaml>=6.0.12.20250915",
+]
+
+[tool.bandit]
+exclude_dirs = ["tests"]
+
+[tool.coverage.run]
+source = ["src"]
+branch = true
+omit = [
+    "tests/*",
+    "**/__init__.py"
+]
+
+[tool.coverage.report]
+show_missing = true
+fail_under = 0
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if __name__ == .__main__.:",
+    "raise NotImplementedError"
+]

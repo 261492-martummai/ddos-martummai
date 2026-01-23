@@ -1,0 +1,16 @@
+system:
+  interface: null
+  csv_output_path: /var/log/ddos-martummai/flow_logs.csv
+  test_mode_output: /tmp/ddos_martummai_test.csv
+
+model:
+  batch_size: 1000
+
+mitigation:
+  enable_blocking: false
+  block_duration_seconds: 180
+  admin_email: ""
+  smtp_server: "smtp.gmail.com"
+  smtp_port: 587
+  smtp_user: ""
+  smtp_password: ""
