@@ -8,3 +8,11 @@ wheels/
 
 # Virtual environments
 .venv
+
+.ruff_cache/
+__pycache__/
+*.pcap
+*.pyc
+.idea
+*.csv
+*.csv#

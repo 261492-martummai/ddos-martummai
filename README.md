@@ -28,6 +28,13 @@ Follow these steps to set up the development environment:
     uv sync --dev
     ```
 
+## VS Code Configuration (Recommended)
+
+To ensure code consistency and enable automatic formatting on save, we recommend using Visual Studio Code with the **Ruff** extension.
+
+1.  Install the **Ruff** extension (Publisher: Astral Software).
+2.  Folder named `.vscode` will activate for ruff setting.
+
 ## Development Workflow
 
 We use a strict set of tools to maintain code quality. Please run these commands locally before submitting a Pull Request.

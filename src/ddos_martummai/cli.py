@@ -1,22 +1,29 @@
-import click
-import sys
 import os
-from .config_loader import load_config, validate_config, DEFAULT_CONFIG_DICT
+import sys
+
+import click
+
+from .config_loader import DEFAULT_CONFIG_DICT, load_config, validate_config
 from .core import DDoSDetector
-from .setup_wizard import run_setup_wizard
 from .logger import setup_logger
+from .setup_wizard import run_setup_wizard
+
 
 @click.command()
-@click.option('--config', '-c', default='/etc/ddos-martummai/config.yml', help='Path to config file')
-@click.option('--test-mode', '-t', is_flag=True, help='Enable test mode')
-@click.option('--file', '-f', help='Input file path (.pcap or .csv) for test mode')
-@click.option('--verbose', '-v', is_flag=True, help='Enable debug logging')
+@click.option(
+    "--config",
+    "-c",
+    default="/etc/ddos-martummai/config.yml",
+    help="Path to config file",
+)
+@click.option("--test-mode", "-t", is_flag=True, help="Enable test mode")
+@click.option("--file", "-f", help="Input file path (.pcap or .csv) for test mode")
+@click.option("--verbose", "-v", is_flag=True, help="Enable debug logging")
 def main(config, test_mode, file, verbose):
-
     # 0. Setup Logger
     log_level = "DEBUG" if verbose else "INFO"
     setup_logger("/var/log/ddos-martummai/service.log", level=log_level)
-    
+
     # 1. Fallback for Local Development (if not running from installed system path)
     if not os.path.exists(config):
         local_config = "config/config.yml"
@@ -49,16 +56,17 @@ def main(config, test_mode, file, verbose):
         if not file:
             click.echo("Error: --file is required for test mode")
             return
-        
-        if file.endswith('.pcap'):
-            detector.start_monitoring(mode='pcap', input_file=file)
-        elif file.endswith('.csv'):
-            detector.start_monitoring(mode='csv', input_file=file)
+
+        if file.endswith(".pcap"):
+            detector.start_monitoring(mode="pcap", input_file=file)
+        elif file.endswith(".csv"):
+            detector.start_monitoring(mode="csv", input_file=file)
         else:
             click.echo("Error: Unsupported file format. Use .pcap or .csv")
     else:
         click.echo(f"Starting Live Monitoring on {app_config.system.interface}...")
-        detector.start_monitoring(mode='live')
+        detector.start_monitoring(mode="live")
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main()
