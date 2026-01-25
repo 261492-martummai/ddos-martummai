@@ -27,6 +27,12 @@ Follow these steps to set up the development environment:
     ```bash
     uv sync --dev
     ```
+    
+2.  **Run the application:**
+    To start the detection system, use the following command:
+    ```bash
+    uv run ddos-martummai
+    ```
 
 ## VS Code Configuration (Recommended)
 
@@ -61,7 +67,13 @@ If errors are found, you can often fix them automatically by adding `--fix`:
 uv run ruff check --fix src/ tests/
 ```
 
-### 4. Security Scan
+### 4. Static Type Checking
+We use `mypy` to check for type consistency and enforce type safety throughout the code.
+```bash
+uv run mypy src/
+```
+
+### 5. Security Scan
 We use `bandit` to scan for common security issues in Python code.
 ```bash
 uv run bandit -r src/ -c pyproject.toml
@@ -126,4 +138,5 @@ To create a new release (Admins only):
 
 **Problem:** CI fails on "Branch out of date".
 **Solution:** In the Pull Request page, click "Update branch" to merge the latest changes from the target branch into your feature branch, then wait for the checks to run again.
+
 
