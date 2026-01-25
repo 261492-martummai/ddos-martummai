@@ -35,10 +35,10 @@ DEFAULT_CONFIG_DICT = {
 
 @dataclass
 class SystemConfig:
-    interface: Optional[str]
-    csv_output_path: Optional[str] = None
-    test_mode_output_path: Optional[str] = None
-    log_file_path: Optional[str] = None
+    interface: str
+    csv_output_path: str
+    test_mode_output_path: str
+    log_file_path: str
 
 
 @dataclass
@@ -144,7 +144,9 @@ def _load_env_variable(config_data: Dict[str, Any]) -> Dict[str, Any]:
     return config_data
 
 
-def load_config(path: str = None, override_env: bool = False) -> Optional[AppConfig]:
+def load_config(
+    path: Optional[str] = None, override_env: bool = False
+) -> Optional[AppConfig]:
     # Determine config file path
     if path:
         config_file = Path(path)
