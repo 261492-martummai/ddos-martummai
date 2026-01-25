@@ -8,3 +8,18 @@ wheels/
 
 # Virtual environments
 .venv
+.ruff_cache/
+__pycache__/
+*.pcap
+*.pyc
+.idea
+*.csv
+*.csv#
+.mypy_cache/
+.pytest_cache/
+
+# Environments
+logs/
+cic_output/
+.env
+config/config.yml
