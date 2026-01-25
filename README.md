@@ -27,6 +27,12 @@ Follow these steps to set up the development environment:
     ```bash
     uv sync --dev
     ```
+    
+2.  **Run the application:**
+    To start the detection system, use the following command:
+    ```bash
+    uv run ddos-martummai
+    ```
 
 ## VS Code Configuration (Recommended)
 
@@ -37,34 +43,9 @@ To ensure code consistency and enable automatic formatting on save, we recommend
 
 ## Development Workflow
 
-We use a strict set of tools to maintain code quality. Please run these commands locally before submitting a Pull Request.
-
-### 1. Running Tests
-We use `pytest` for unit testing. The configuration is set to calculate code coverage automatically.
+We use a strict set of tools to maintain code quality. Please run this command locally before submitting a Pull Request.
 ```bash
-uv run pytest
-```
-
-### 2. Code Formatting
-We use `ruff` to format the code. This ensures a consistent style across the codebase (e.g., line length of 88 characters).
-```bash
-uv run ruff format src/ tests/
-```
-
-### 3. Linting
-Use `ruff` to check for syntax errors, unused imports, and style violations.
-```bash
-uv run ruff check src/ tests/
-```
-If errors are found, you can often fix them automatically by adding `--fix`:
-```bash
-uv run ruff check --fix src/ tests/
-```
-
-### 4. Security Scan
-We use `bandit` to scan for common security issues in Python code.
-```bash
-uv run bandit -r src/ -c pyproject.toml
+uv run checker
 ```
 
 ## Branching and Contribution Strategy
@@ -126,4 +107,5 @@ To create a new release (Admins only):
 
 **Problem:** CI fails on "Branch out of date".
 **Solution:** In the Pull Request page, click "Update branch" to merge the latest changes from the target branch into your feature branch, then wait for the checks to run again.
+
 

@@ -17,6 +17,7 @@ __pycache__/
 *.csv#
 .mypy_cache/
 .pytest_cache/
+.coverage
 
 # Environments
 logs/
