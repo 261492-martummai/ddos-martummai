@@ -1,4 +1,5 @@
 import os
+import socket
 
 import psutil
 import questionary
@@ -10,9 +11,25 @@ console = Console()
 
 
 def get_network_interfaces():
+    options = []
     try:
-        return list(psutil.net_if_addrs().keys())
-    except Exception:
+        net_addrs = psutil.net_if_addrs()
+
+        for interface_name, snics in net_addrs.items():
+            ip_label = "No IPv4"
+
+            for snic in snics:
+                if snic.family == socket.AF_INET:
+                    ip_label = snic.address
+                    break
+
+            display_text = f"{interface_name:<10} - {ip_label}"
+            options.append(questionary.Choice(title=display_text, value=interface_name))
+
+        return options
+
+    except Exception as e:
+        console.print(f"[yellow]Warning: Could not list interfaces ({e})[/yellow]")
         return []
 
 
@@ -84,6 +101,7 @@ def run_setup_wizard(config_path: str, default_config: dict) -> bool:
         console.print(
             f"\n[bold green]Configuration saved to: {config_path}[/bold green]"
         )
+        console.print("You can change any settings later.\n")
         return True
     except Exception as e:
         console.print(f"[bold red]Failed to save config: {e}[/bold red]")

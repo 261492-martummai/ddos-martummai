@@ -1,9 +1,15 @@
-import os
 import sys
+from dataclasses import asdict
+from pathlib import Path
 
 import click
 
-from .config_loader import DEFAULT_CONFIG_DICT, load_config, validate_config
+from .config_loader import (
+    DEFAULT_CONFIG_DICT,
+    DEFAULT_CONFIG_PATH,
+    load_config,
+    validate_config,
+)
 from .core import DDoSDetector
 from .logger import setup_logger
 from .setup_wizard import run_setup_wizard
@@ -13,35 +19,53 @@ from .setup_wizard import run_setup_wizard
 @click.option(
     "--config",
     "-c",
-    default="/etc/ddos-martummai/config.yml",
+    default=DEFAULT_CONFIG_PATH,
     help="Path to config file",
 )
 @click.option("--test-mode", "-t", is_flag=True, help="Enable test mode")
 @click.option("--file", "-f", help="Input file path (.pcap or .csv) for test mode")
+@click.option(
+    "--override-env",
+    "-o",
+    is_flag=True,
+    help="Override existing config form enironment variables",
+)
 @click.option("--verbose", "-v", is_flag=True, help="Enable debug logging")
-def main(config, test_mode, file, verbose):
-    # 0. Setup Logger
+def main(config, test_mode, file, override_env, verbose):
+    # 1. Load Config First
+    # We need the config to know WHERE to write the logs
+    app_config = load_config(config, override_env=override_env)
+
+    # 2. Setup Logger
     log_level = "DEBUG" if verbose else "INFO"
-    setup_logger("/var/log/ddos-martummai/service.log", level=log_level)
-
-    # 1. Fallback for Local Development (if not running from installed system path)
-    if not os.path.exists(config):
-        local_config = "config/config.yml"
-        if os.path.exists(local_config):
-            config = local_config
-
-    # 2. Load Config
-    app_config = load_config(config)
+    if app_config and app_config.system.log_file_path:
+        log_path = app_config.system.log_file_path
+        # Ensure directory exists (safe check)
+        try:
+            Path(log_path).parent.mkdir(parents=True, exist_ok=True)
+            setup_logger(log_path, level=log_level)
+            if verbose:
+                print(f"Logging initialized at: {log_path}")
+        except PermissionError:
+            print(f"[!] Permission Denied: Cannot write logs to {log_path}")
+            print("[!] Falling back to console output only.")
+            setup_logger(None, level=log_level)
+    else:
+        # Fallback if config failed completely
+        setup_logger(None, level=log_level)
 
     # 3. Validation & Wizard Trigger
     if app_config is None or not validate_config(app_config):
         if sys.stdin.isatty():
             # Interactive Mode (User is running manually)
-            success = run_setup_wizard(config, DEFAULT_CONFIG_DICT)
+            base_config_for_wizard = (
+                asdict(app_config) if app_config else DEFAULT_CONFIG_DICT
+            )
+            success = run_setup_wizard(config, base_config_for_wizard)
             if not success:
                 sys.exit(1)
             # Reload after setup
-            app_config = load_config(config)
+            app_config = load_config(config, override_env=override_env)
         else:
             # Service Mode (Headless)
             print(f"[FATAL] Configuration invalid or missing at {config}")
@@ -51,6 +75,8 @@ def main(config, test_mode, file, verbose):
     # 4. Initialize Detector
     detector = DDoSDetector(app_config)
 
+    print("dry run complete")
+    sys.exit(1)
     # 5. Run Mode Selection
     if test_mode:
         if not file:

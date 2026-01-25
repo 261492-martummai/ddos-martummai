@@ -3,7 +3,6 @@
 APP_NAME="ddos-martummai"
 INSTALL_DIR="/opt/$APP_NAME"
 CONFIG_DIR="/etc/$APP_NAME"
-LOG_DIR="/var/log/$APP_NAME"
 SERVICE_NAME="$APP_NAME.service"
 
 # Colors
@@ -37,7 +36,6 @@ fi
 echo -e "${GREEN}[*] Setting up directories...${NC}"
 mkdir -p "$INSTALL_DIR"
 mkdir -p "$CONFIG_DIR"
-mkdir -p "$LOG_DIR"
 
 # 5. Copy Application Files
 echo -e "${GREEN}[*] Copying application files...${NC}"
@@ -51,7 +49,7 @@ cp system/$SERVICE_NAME /etc/systemd/system/
 
 # Copy Default Config (Only if not exists)
 if [ ! -f "$CONFIG_DIR/config.yml" ]; then
-    cp config/config.yml "$CONFIG_DIR/"
+    cp config/config.example.yml "$CONFIG_DIR/config.yml"
 fi
 
 # 6. Install Python Deps (Sync)

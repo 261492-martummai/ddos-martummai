@@ -1,6 +1,6 @@
 import logging
 import smtplib
-import subprocess
+import subprocess  # nosec B404
 import threading
 import time
 from email.mime.text import MIMEText
@@ -22,16 +22,24 @@ class Mitigator:
         try:
             # Check if rule exists to avoid duplicates
             check = subprocess.run(
-                ["iptables", "-C", "INPUT", "-s", ip_address, "-j", "DROP"],
+                ["/usr/sbin/iptables", "-C", "INPUT", "-s", ip_address, "-j", "DROP"],
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
-            )
+            )  # nosec B603
 
             if check.returncode != 0:
                 subprocess.run(
-                    ["iptables", "-A", "INPUT", "-s", ip_address, "-j", "DROP"],
+                    [
+                        "/usr/sbin/iptables",
+                        "-A",
+                        "INPUT",
+                        "-s",
+                        ip_address,
+                        "-j",
+                        "DROP",
+                    ],
                     check=True,
-                )
+                )  # nosec B603
                 self._schedule_unblock(ip_address)
         except subprocess.CalledProcessError as e:
             logger.error(f"Error modifying iptables: {e}")
@@ -46,9 +54,17 @@ class Mitigator:
             try:
                 logger.info(f"[MITIGATION] Unblocking IP: {ip_address}")
                 subprocess.run(
-                    ["iptables", "-D", "INPUT", "-s", ip_address, "-j", "DROP"],
+                    [
+                        "/usr/sbin/iptables",
+                        "-D",
+                        "INPUT",
+                        "-s",
+                        ip_address,
+                        "-j",
+                        "DROP",
+                    ],
                     check=False,
-                )
+                )  # nosec B603
             except Exception as e:
                 logger.error(f"[!] Error unblocking IP: {e}")
 

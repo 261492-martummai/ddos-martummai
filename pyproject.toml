@@ -17,7 +17,7 @@ dependencies = [
 ]
 
 [project.scripts]
-ddos-guard = "ddos_martummai.cli:main"
+ddos-martummai = "ddos_martummai.cli:main"
 
 [build-system]
 requires = ["hatchling"]

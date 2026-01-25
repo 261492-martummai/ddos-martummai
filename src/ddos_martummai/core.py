@@ -1,6 +1,6 @@
 import logging
 import os
-import subprocess
+import subprocess  # nosec B404
 import sys
 import time
 from pathlib import Path
@@ -96,7 +96,7 @@ class DDoSDetector:
         # Run in background, suppress standard output to keep CLI clean
         self.cic_process = subprocess.Popen(
             cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
-        )
+        )  # nosec B603
         self._tail_csv(self.config.system.csv_output_path)
 
     def _run_cicflowmeter_pcap(self, pcap_path: str):
@@ -113,7 +113,7 @@ class DDoSDetector:
             self.config.system.test_mode_output,
         ]
 
-        subprocess.run(cmd, check=True)
+        subprocess.run(cmd, check=True)  # nosec B603
         self._read_csv_direct(self.config.system.test_mode_output)
 
     def _tail_csv(self, csv_path: str):
@@ -142,7 +142,7 @@ class DDoSDetector:
                         data_dict = dict(zip(headers, row))
                         self.packet_queue.put(data_dict)
                 except Exception:
-                    pass
+                    logger.exception("Error reading flow line.")
 
     def _read_csv_direct(self, csv_path: str):
         if not os.path.exists(csv_path):
@@ -173,6 +173,7 @@ class DDoSDetector:
                 time.sleep(0.1)
 
     def _predict_batch(self, batch_data: list):
+        # Dummy Code
         if not batch_data:
             return
         df = pd.DataFrame(batch_data)

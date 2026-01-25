@@ -1,0 +1,17 @@
+system:
+  interface: null
+  csv_output_path: null
+  test_mode_output_path: null
+  log_file_path: null
+
+model:
+  batch_size: 1000
+
+mitigation:
+  enable_blocking: false
+  block_duration_seconds: 180
+  admin_email: ""
+  smtp_server: ""
+  smtp_port: 587
+  smtp_user: ""
+  smtp_password: ""
