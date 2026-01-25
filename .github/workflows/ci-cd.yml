@@ -1,4 +1,4 @@
-name: "Workflow DDoS MarTumMai Guard CI/CD"
+name: "Workflow DDoS MarTumMai Guard"
 
 on:
   push:
@@ -26,13 +26,13 @@ jobs:
       - name: Linting
         run: uv run ruff check .
 
+      - name: Type Checking
+        run: uv run mypy src/
+        
       - name: Security Scan
         continue-on-error: true
         run: uv run bandit -r src/ -c pyproject.toml --exclude tests/
 
-      - name: Type Checking
-        continue-on-error: true
-        run: uv run mypy src/
 
   testing:
     name: Unit Testing
