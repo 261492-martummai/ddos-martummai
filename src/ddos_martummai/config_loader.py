@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Optional
 import yaml
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("ddos-martummai")
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 DEFAULT_CONFIG_PATH = BASE_DIR / "config/config.yml"
@@ -15,6 +15,7 @@ TEMPLATE_CONFIG_PATH = BASE_DIR / "config/config.example.yml"
 # =========================
 # Dataclasses with defaults
 # =========================
+
 
 @dataclass
 class SystemConfig:
@@ -50,6 +51,7 @@ class AppConfig:
 # =========================
 # Helpers
 # =========================
+
 
 def ensure_file_exists(config_file: Path):
     if config_file.exists():
@@ -93,9 +95,7 @@ def override_from_env(config: AppConfig) -> AppConfig:
 
     s.interface = os.getenv("DDOS_MARTUMMAI_INTERFACE", s.interface)
 
-    m.batch_size = int(
-        os.getenv("DDOS_MARTUMMAI_BATCH_SIZE", m.batch_size)
-    )
+    m.batch_size = int(os.getenv("DDOS_MARTUMMAI_BATCH_SIZE", m.batch_size))
 
     mit.smtp_server = os.getenv("DDOS_MARTUMMAI_SMTP_SERVER", mit.smtp_server)
     mit.smtp_port = int(os.getenv("DDOS_MARTUMMAI_SMTP_PORT", mit.smtp_port))
@@ -133,6 +133,7 @@ def validate_config(config: AppConfig):
 # =========================
 # Main loader
 # =========================
+
 
 def load_config(
     path: Optional[str] = None,

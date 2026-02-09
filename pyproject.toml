@@ -57,7 +57,7 @@ exclude_lines = [
 ]
 
 [project.scripts]
-ddos-martummai = "ddos_martummai.cli:main"
+ddos-martummai = "ddos_martummai.main:main"
 checker = "checker_scripts:run_checks"
 
 [build-system]
