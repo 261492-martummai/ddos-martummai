@@ -1,14 +1,10 @@
 import sys
-from dataclasses import asdict
 from pathlib import Path
 
 import click
 
 from .config_loader import (
-    DEFAULT_CONFIG_DICT,
-    DEFAULT_CONFIG_PATH,
     load_config,
-    validate_config,
 )
 from .core import DDoSDetector
 from .logger import setup_logger
@@ -16,12 +12,8 @@ from .setup_wizard import run_setup_wizard
 
 
 @click.command()
-@click.option(
-    "--config",
-    "-c",
-    default=DEFAULT_CONFIG_PATH,
-    help="Path to config file",
-)
+@click.option("--config", "-c", default="config/config.yml", help="Path to config file")
+
 @click.option("--test-mode", "-t", is_flag=True, help="Enable test mode")
 @click.option("--file", "-f", help="Input file path (.pcap or .csv) for test mode")
 @click.option(
@@ -34,7 +26,7 @@ from .setup_wizard import run_setup_wizard
 def main(config, test_mode, file, override_env, verbose):
     # 1. Load Config First
     # We need the config to know WHERE to write the logs
-    app_config = load_config(config, override_env=override_env)
+    app_config = load_config(config, override_env_vars=override_env)
 
     # 2. Setup Logger
     log_level = "DEBUG" if verbose else "INFO"
@@ -55,17 +47,17 @@ def main(config, test_mode, file, override_env, verbose):
         setup_logger(None, level=log_level)
 
     # 3. Validation & Wizard Trigger
-    if app_config is None or not validate_config(app_config):
+    if app_config is None:
         if sys.stdin.isatty():
             # Interactive Mode (User is running manually)
-            base_config_for_wizard = (
-                asdict(app_config) if app_config else DEFAULT_CONFIG_DICT
-            )
+            base_config_for_wizard = {}
+
             success = run_setup_wizard(config, base_config_for_wizard)
             if not success:
                 sys.exit(1)
             # Reload after setup
-            app_config = load_config(config, override_env=override_env)
+            app_config = load_config(config, override_env_vars=override_env)
+
         else:
             # Service Mode (Headless)
             print(f"[FATAL] Configuration invalid or missing at {config}")
