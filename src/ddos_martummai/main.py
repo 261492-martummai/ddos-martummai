@@ -67,8 +67,8 @@ def main(config, test_mode, file, override_env, verbose):
             sys.exit(1)
 
     # 4. Initialize
-    reader = Reader()
-    preprocessor = DDoSPreprocessor(scaler_path="models/scaler.joblib")
+    # reader = Reader()
+    # preprocessor = DDoSPreprocessor(scaler_path="models/scaler.joblib")
     detector = DDoSDetector(app_config)
 
     # 5. Run Mode Selection

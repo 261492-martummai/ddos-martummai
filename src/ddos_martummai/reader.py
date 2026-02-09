@@ -1,10 +1,10 @@
 import logging
 import os
 import subprocess  # nosec B404
-import sys
+# import sys
 import time
-from pathlib import Path
-from queue import Queue
+# from pathlib import Path
+# from queue import Queue
 from threading import Thread
 
 import pandas as pd
