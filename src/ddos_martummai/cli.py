@@ -1,11 +1,9 @@
 import sys
-from dataclasses import asdict
 from pathlib import Path
 
 import click
 
 from .config_loader import (
-    DEFAULT_CONFIG_PATH,
     load_config,
 )
 from .core import DDoSDetector
