@@ -3,7 +3,7 @@ from pathlib import Path
 
 import click
 
-from ddos_martummai.preprocessor import DDoSPreprocessor
+# from ddos_martummai.preprocessor import DDoSPreprocessor
 
 
 from .config_loader import (
@@ -12,7 +12,7 @@ from .config_loader import (
 from .detector import DDoSDetector
 from .logger import setup_logger
 from .setup_wizard import run_setup_wizard
-from .reader import Reader
+# from .reader import Reader
 
 @click.command()
 @click.option("--config", "-c", default="config/config.yml", help="Path to config file")
