@@ -11,7 +11,7 @@ from typing import Any
 import joblib  # type: ignore
 import pandas as pd
 
-from .config_loader import AppConfig
+from .config_loader_oldl import AppConfig
 from .mitigation import Mitigator
 
 logger = logging.getLogger("ddos-martummai")
