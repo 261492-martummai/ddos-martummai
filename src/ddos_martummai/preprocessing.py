@@ -274,7 +274,7 @@ def load_scaler(scaler_path: str) -> MinMaxScaler:
 
 def validate_data_quality(df: pd.DataFrame, 
                           max_missing_ratio: float = 0.5,
-                          max_duplicate_ratio: float = 0.3) -> Dict[str, bool]:
+                          max_duplicate_ratio: float = 0.3):
     """
     Validate data quality metrics.
     
@@ -310,7 +310,7 @@ def validate_data_quality(df: pd.DataFrame,
 class DDoSPreprocessor:
     """Production-ready preprocessor for DDoS detection."""
     
-    def __init__(self, scaler_path: str = None):
+    def __init__(self, scaler_path: str):
         """
         Initialize preprocessor.
         
