@@ -5,7 +5,7 @@ description = "DDoS Detection System Service"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
-    "cicflowmeter>=0.5.0",
+    "cicflowmeter @ git+https://github.com/hieulw/cicflowmeter.git@master",
     "click>=8.3.1",
     "joblib>=1.5.3",
     "pandas>=3.0.0",
@@ -63,6 +63,9 @@ checker = "checker_scripts:run_checks"
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[tool.hatch.metadata]
+allow-direct-references = true
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/ddos_martummai"]

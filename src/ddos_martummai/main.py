@@ -14,6 +14,7 @@ from .logger import setup_logger
 from .setup_wizard import run_setup_wizard
 # from .reader import Reader
 
+
 @click.command()
 @click.option("--config", "-c", default="config/config.yml", help="Path to config file")
 @click.option("--test-mode", "-t", is_flag=True, help="Enable test mode")
