@@ -77,17 +77,13 @@ wheels = [
 
 [[package]]
 name = "cicflowmeter"
-version = "0.5.0"
-source = { registry = "https://pypi.org/simple" }
+version = "0.4.2"
+source = { git = "https://github.com/hieulw/cicflowmeter.git?rev=master#61ca5ab945e6043b9b6f20c0b4b5b7828b5ce8f8" }
 dependencies = [
     { name = "numpy" },
     { name = "requests" },
     { name = "scapy" },
     { name = "scipy" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/da/20/61f2285a6bae616a2412c2fc1eb5b95296e10ceaa69fcd78011dfa82f612/cicflowmeter-0.5.0.tar.gz", hash = "sha256:501d8b78ca6b95a1d1300bf5f9424bbfa1f359d188e0af960920586b4a0d4f0e", size = 31417, upload-time = "2025-10-25T10:42:31.974Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/38/44/5c3b39d14836398334513647c975ed797b6a393cfd719895210c61070fc3/cicflowmeter-0.5.0-py3-none-any.whl", hash = "sha256:5aabcbb05651261b2c34171aa041015f55673cddda01dc8a6f7508976795c361", size = 19896, upload-time = "2025-10-25T10:42:30.214Z" },
 ]
 
 [[package]]
@@ -202,7 +198,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "cicflowmeter", specifier = ">=0.5.0" },
+    { name = "cicflowmeter", git = "https://github.com/hieulw/cicflowmeter.git?rev=master" },
     { name = "click", specifier = ">=8.3.1" },
     { name = "joblib", specifier = ">=1.5.3" },
     { name = "pandas", specifier = ">=3.0.0" },

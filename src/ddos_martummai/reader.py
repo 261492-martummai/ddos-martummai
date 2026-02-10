@@ -16,11 +16,11 @@
 
 # class Reader:
 #     def __init__(self, config: AppConfig):
-#         self.config = config    
+#         self.config = config
 #         self.mitigator = Mitigator(config.mitigation)
 #         self.running = False
 #         self.cic_process = None
-    
+
 #     def start_monitoring(self, mode: str, input_file: str):
 #         self.running = True
 
