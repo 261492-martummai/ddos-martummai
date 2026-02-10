@@ -5,9 +5,7 @@ import sys
 import time
 from pathlib import Path
 from queue import Queue
-from threading import Thread
-
-import joblib  # type: ignore
+import joblib
 import pandas as pd
 
 from .config_loader import AppConfig
@@ -17,153 +15,58 @@ logger = logging.getLogger("ddos-martummai")
 
 
 class DDoSDetector:
-    def __init__(self, config: AppConfig):
+    
+    def __init__(self, model_path: Path, config: AppConfig, cleaned_packet_queue: Queue):
         self.config = config
+        self.model = self._load_model(model_path)
+        self.mitigator = Mitigator(config)
+        self.cleaned_packet_queue = cleaned_packet_queue
+        self.running = False
+        self.cic_process = None
 
-        current_dir = Path(__file__).parent.resolve()
-        model_dir = current_dir / "models"
-        self.model_path = model_dir / "model.joblib"
-        self.scaler_path = model_dir / "scaler.joblib"  # TODO: delete this line
+    def start(self):
+        print("Detector: Start")
+        while True:
+            item = self.cleaned_packet_queue.get()
+            if item is None:
+                print("Detector: Received None -> Exiting")
+                break
+        self._process_queue()                     
 
-        logger.info("Initializing DDoS Guard...")
-        logger.info(f"Loading Internal Model from: {self.model_path}")
+            
+    def _load_model(self, model_path: Path):
+        # current_dir = Path(__file__).parent.resolve()
+        # model_dir = current_dir / "models"
+        # self.model_path = model_dir / "model.joblib"
 
-        if not self.model_path.exists():
-            logger.error(f"[FATAL] Model file not found at {self.model_path}")
+        # logger.info("Initializing DDoS Guard...")
+        logger.info(f"Loading Internal Model from: {model_path}")
+
+        if not model_path.exists():
+            logger.error(f"[FATAL] Model file not found at {model_path}")
             logger.error(
                 "The package was built without model files or they are missing."
             )
             sys.exit(1)
 
         try:
-            self.model = joblib.load(self.model_path)
-            self.scaler = joblib.load(self.scaler_path)  # TODO: delete this line
-            logger.info("Model and Scaler loaded successfully.")
+            self.model = joblib.load(model_path)
+            logger.info("Model loaded successfully.")
         except Exception as e:
             logger.error(f"Error loading model/scaler: {e}")
             sys.exit(1)
 
-        self.mitigator = Mitigator(config.mitigation)
-        self.packet_queue: Queue[dict] = Queue()
-        self.running = False
-        self.cic_process = None
-
-    def start_monitoring(self, mode: str, input_file: str):
-        self.running = True
-
-        # Start Consumer Thread (Predictor)
-        processor_thread = Thread(target=self._process_queue, daemon=True)
-        processor_thread.start()
-
-        try:
-            if mode == "live":
-                self._run_cicflowmeter_live()
-            elif mode == "pcap":
-                self._run_cicflowmeter_pcap(input_file)
-            elif mode == "csv":
-                self._read_csv_direct(input_file)
-
-            # Keep main thread alive
-            while self.running:
-                time.sleep(1)
-        except KeyboardInterrupt:
-            self.stop()
-
-    def stop(self):
-        logger.info("Stopping DDoS Guard Service...")
-        self.running = False
-        if self.cic_process:
-            self.cic_process.terminate()
-
-    def _run_cicflowmeter_live(self):
-        logger.info(
-            f"Starting CICFlowMeter on interface {self.config.system.interface}..."
-        )
-
-        # Ensure log directory exists
-        log_dir = os.path.dirname(self.config.system.csv_output_path)
-        if log_dir:
-            os.makedirs(log_dir, exist_ok=True)
-
-        cmd = [
-            "cicflowmeter",
-            "-i",
-            self.config.system.interface,
-            "-c",
-            self.config.system.csv_output_path,
-        ]
-
-        # Run in background, suppress standard output to keep CLI clean
-        self.cic_process = subprocess.Popen(
-            cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
-        )  # nosec B603
-        self._read_csv_live(self.config.system.csv_output_path)
-
-    def _run_cicflowmeter_pcap(self, pcap_path: str):
-        logger.info(f"Processing PCAP file: {pcap_path}")
-        output_dir = os.path.dirname(self.config.system.test_mode_output_path)
-        if output_dir:
-            os.makedirs(output_dir, exist_ok=True)
-
-        cmd = [
-            "cicflowmeter",
-            "-f",
-            pcap_path,
-            "-c",
-            self.config.system.test_mode_output_path,
-        ]
-
-        subprocess.run(cmd, check=True)  # nosec B603
-        self._read_csv_direct(self.config.system.test_mode_output_path)
-
-    def _read_csv_live(self, csv_path: str):
-        logger.info(f"Waiting for flows in {csv_path}...")
-
-        # Wait for file creation
-        while not os.path.exists(csv_path):
-            time.sleep(1)
-            if not self.running:
-                return
-
-        with open(csv_path, "r") as f:
-            features = f.readline().strip().split(",")
-            # Go to end of file to read only new flows
-            f.seek(0, 2)  # TODO: what is this
-
-            while self.running:
-                line = f.readline()
-                if not line:
-                    time.sleep(0.1)
-                    continue
-
-                try:
-                    record = line.strip().split(",")
-                    if len(record) == len(features):
-                        data_dict = dict(zip(features, record))
-                        self.packet_queue.put(data_dict)
-                except Exception:
-                    logger.exception("Error reading flow line.")
-
-    def _read_csv_direct(self, csv_path: str):
-        if not os.path.exists(csv_path):
-            logger.error(f"CSV file not found at {csv_path}")
-            return
-
-        df = pd.read_csv(csv_path)
-        logger.info(f"Loaded {len(df)} flows. Processing...")
-
-        for _, row in df.iterrows():
-            if not self.running:
-                break
-            self.packet_queue.put(row.to_dict())
-
     def _process_queue(self):
         batch = []
-        while self.running:
-            if not self.packet_queue.empty():
-                batch.append(self.packet_queue.get())
-
-                if len(batch) >= self.config.model.batch_size:
+        while True:
+            if not self.cleaned_packet_queue.empty():
+                pkt = self.cleaned_packet_queue.get()
+                if pkt is None:
+                    print("Detector: Received None -> Exiting")
+                    break
+                
+                batch.append(pkt)
+                if len(batch) >= self.batch_size:
                     self._predict_batch(batch)
                     batch = []
             else:
@@ -195,6 +98,7 @@ class DDoSDetector:
             # Predict
             predictions = self.model.predict(X_scaled)
 
+            # TODO: maybe switch to % alert
             for i, pred in enumerate(predictions):
                 if pred == 1:  # Attack Detected
                     # Try to find IP column with various possible names

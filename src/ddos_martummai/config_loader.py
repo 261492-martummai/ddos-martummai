@@ -157,5 +157,5 @@ def load_config(
     if override_env_vars:
         config = override_from_env(config)
 
-    validate_config(config)
+    # validate_config(config)
     return config
