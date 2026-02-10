@@ -1,22 +1,22 @@
 import logging
-import os
-import subprocess  # nosec B404
 import sys
 import time
 from pathlib import Path
 from queue import Queue
+
 import joblib
 import pandas as pd
 
-from .config_loader import AppConfig
-from .mitigation import Mitigator
+from ddos_martummai.config_loader import AppConfig
+from ddos_martummai.mitigation import Mitigator
 
 logger = logging.getLogger("ddos-martummai")
 
 
 class DDoSDetector:
-    
-    def __init__(self, model_path: Path, config: AppConfig, cleaned_packet_queue: Queue):
+    def __init__(
+        self, model_path: Path, config: AppConfig, cleaned_packet_queue: Queue
+    ):
         self.config = config
         self.model = self._load_model(model_path)
         self.mitigator = Mitigator(config)
@@ -25,21 +25,15 @@ class DDoSDetector:
         self.cic_process = None
 
     def start(self):
-        print("Detector: Start")
+        logger.info("Detector: Start")
         while True:
             item = self.cleaned_packet_queue.get()
             if item is None:
-                print("Detector: Received None -> Exiting")
+                logger.info("Detector: Received None -> Exiting")
                 break
-        self._process_queue()                     
+        self._process_queue()
 
-            
     def _load_model(self, model_path: Path):
-        # current_dir = Path(__file__).parent.resolve()
-        # model_dir = current_dir / "models"
-        # self.model_path = model_dir / "model.joblib"
-
-        # logger.info("Initializing DDoS Guard...")
         logger.info(f"Loading Internal Model from: {model_path}")
 
         if not model_path.exists():
@@ -62,9 +56,9 @@ class DDoSDetector:
             if not self.cleaned_packet_queue.empty():
                 pkt = self.cleaned_packet_queue.get()
                 if pkt is None:
-                    print("Detector: Received None -> Exiting")
+                    logger.info("Detector: Received None -> Exiting")
                     break
-                
+
                 batch.append(pkt)
                 if len(batch) >= self.batch_size:
                     self._predict_batch(batch)

@@ -1,15 +1,18 @@
-import pandas as pd
-import numpy as np
-from sklearn.preprocessing import MinMaxScaler
-from typing import List, Dict
 import logging
-from pathlib import Path
-import joblib
 import queue
+from pathlib import Path
 from queue import Queue
-from .util import constant       
+from typing import Dict, List
+
+import joblib
+import numpy as np
+import pandas as pd
+from sklearn.preprocessing import MinMaxScaler
+
+from .util import constant
 
 logger = logging.getLogger("ddos-martummai")
+
 
 def clean_column_names(df: pd.DataFrame) -> pd.DataFrame:
     """Strip whitespace from column names."""
@@ -79,9 +82,7 @@ def convert_to_float32(df: pd.DataFrame) -> pd.DataFrame:
     return df.astype(np.float32)
 
 
-def scale_features(
-    df: pd.DataFrame, scaler: MinMaxScaler
-) -> pd.DataFrame:
+def scale_features(df: pd.DataFrame, scaler: MinMaxScaler) -> pd.DataFrame:
     """
     Scale features using MinMaxScaler.
 
@@ -96,6 +97,7 @@ def scale_features(
     scaled_df = pd.DataFrame(scaled_data, columns=df.columns, index=df.index)
 
     return scaled_df
+
 
 def process_chunk(
     df: pd.DataFrame,
@@ -118,7 +120,7 @@ def process_chunk(
     rename_map = constant.COLUMN_RENAME_MAP
     processed_chunks = []
     total_rows = 0
-    
+
     try:
         for i, chunk in enumerate(df, chunksize=chunk_size):
             df = clean_column_names(chunk)
@@ -130,7 +132,7 @@ def process_chunk(
             df = remove_duplicates(df)
             df = rename_columns(df, rename_map)
             df = scale_features(df, scaler)
-    
+
             processed_chunks.append(df)
             total_rows += len(df)
             logger.info(f"Processed {i + 1} chunks ({total_rows} rows)")
@@ -166,6 +168,7 @@ def preprocess_realtime_data(
     processed_df = process_chunk(df, scaler)
     return processed_df
 
+
 def save_scaler(scaler: MinMaxScaler, output_path: str) -> None:
     """Save fitted scaler to disk."""
     Path(output_path).parent.mkdir(parents=True, exist_ok=True)
@@ -181,6 +184,7 @@ def load_scaler(scaler_path: str) -> MinMaxScaler:
     logger.info(f"Scaler loaded from {scaler_path}")
     return scaler
 
+
 class DDoSPreprocessor:
     """Production-ready preprocessor for DDoS detection."""
 
@@ -191,20 +195,19 @@ class DDoSPreprocessor:
 
     def get_queue(self) -> Queue:
         return self.cleaned_packet_queue
-    
+
     def start(self):
         while True:
             packet = self.raw_packet_queue.get()
-            
+
             if packet is None:
                 logger.info("Preprocessor: Stopping...")
-                self.raw_packet_queue.put(None)
+                self.cleaned_packet_queue.put(None)
                 break
-            
+
             df = pd.DataFrame([packet])
             processed_df = self.transform(df)
             self.cleaned_packet_queue.put(processed_df.to_dict())
-
 
     def transform(self, df: pd.DataFrame) -> pd.DataFrame:
         """

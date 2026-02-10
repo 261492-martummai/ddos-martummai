@@ -1,12 +1,14 @@
 import logging
 import os
+import queue
 import subprocess  # nosec B404
 import time
-import queue
 from queue import Queue
 
-from .config_loader import AppConfig
+from ddos_martummai.config_loader import AppConfig
+
 logger = logging.getLogger("ddos-martummai")
+
 
 class Reader:
     def __init__(self, config: AppConfig, mode: str = "live"):
@@ -15,7 +17,7 @@ class Reader:
         self.mode = mode
         self.running = False
         self.cic_process = None
-        
+
     def get_queue(self) -> Queue:
         return self.raw_packet_queue
 
@@ -30,7 +32,6 @@ class Reader:
         #     self._read_csv_direct(input_file)
 
     def stop(self):
-        logger.info("Stopping DDoS Guard Service...")
         self.running = False
         if self.cic_process:
             self.cic_process.terminate()
@@ -86,8 +87,8 @@ class Reader:
                         self.raw_packet_queue.put(data_dict)
                 except Exception:
                     logger.exception("Error reading flow line.")
-            
-            logger.info(f"Reader: Stopping...")
+
+            logger.info("Reader: Stopping...")
             self.raw_packet_queue.put(None)
 
     # def _run_cicflowmeter_pcap(self, pcap_path: str):

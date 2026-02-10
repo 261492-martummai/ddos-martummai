@@ -39,14 +39,24 @@ class Mitigator:
         t.start()
 
     def _validate_smtp_config(self):
-        if not self.config.mitigation.admin_email or not self.config.mitigation.smtp_user:
+        if (
+            not self.config.mitigation.admin_email
+            or not self.config.mitigation.smtp_user
+        ):
             logger.warning("Email alerting is disabled: missing config.")
             return
 
         try:
-            with smtplib.SMTP(self.config.mitigation.smtp_server, self.config.mitigation.smtp_port, timeout=5) as server:
+            with smtplib.SMTP(
+                self.config.mitigation.smtp_server,
+                self.config.mitigation.smtp_port,
+                timeout=5,
+            ) as server:
                 server.starttls()
-                server.login(self.config.mitigation.smtp_user, self.config.mitigation.smtp_password)
+                server.login(
+                    self.config.mitigation.smtp_user,
+                    self.config.mitigation.smtp_password,
+                )
             logger.info("SMTP configuration validated successfully.")
         except Exception as e:
             logger.error(f"SMTP validation failed: {e}. You might not receive alerts!")
@@ -60,9 +70,11 @@ class Mitigator:
             addrs = psutil.net_if_addrs()
             if target_interface in addrs:
                 interface_ips = [addr.address for addr in addrs[target_interface]]
-                
+
                 if ip_address in interface_ips:
-                    logger.warning(f"Blocking skipped: IP {ip_address} matches system interface {target_interface}")
+                    logger.warning(
+                        f"Blocking skipped: IP {ip_address} matches system interface {target_interface}"
+                    )
                     return False
         except Exception as e:
             logger.error(f"Error checking interface IPs: {e}")
@@ -70,7 +82,10 @@ class Mitigator:
         return True
 
     def send_alert(self, ip_address: str, flow_info: str):
-        if not self.config.mitigation.admin_email or not self.config.mitigation.smtp_user:
+        if (
+            not self.config.mitigation.admin_email
+            or not self.config.mitigation.smtp_user
+        ):
             return
 
         msg = MIMEText(
@@ -86,17 +101,23 @@ class Mitigator:
                     self.config.mitigation.smtp_server, self.config.mitigation.smtp_port
                 ) as server:
                     server.starttls()
-                    server.login(self.config.mitigation.smtp_user, self.config.mitigation.smtp_password)
+                    server.login(
+                        self.config.mitigation.smtp_user,
+                        self.config.mitigation.smtp_password,
+                    )
                     server.send_message(msg)
-                logger.info(f"[ALERT] Email sent to {self.config.mitigation.admin_email}")
+                logger.info(
+                    f"[ALERT] Email sent to {self.config.mitigation.admin_email}"
+                )
             except Exception as e:
                 logger.error(f"Failed to send email: {e}")
 
         # Run in thread to not block main processing
         threading.Thread(target=send_async, daemon=True).start()
-    
+
     def block_ip(self, ip_address: str):
-        if not self._valid_ip(ip_address): return
+        if not self._valid_ip(ip_address):
+            return
 
         logger.info(f"[MITIGATION] Blocking IP: {ip_address}")
         try:
