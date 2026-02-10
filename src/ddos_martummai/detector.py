@@ -6,7 +6,6 @@ import time
 from pathlib import Path
 from queue import Queue
 from threading import Thread
-from typing import Any
 
 import joblib  # type: ignore
 import pandas as pd
@@ -24,7 +23,7 @@ class DDoSDetector:
         current_dir = Path(__file__).parent.resolve()
         model_dir = current_dir / "models"
         self.model_path = model_dir / "model.joblib"
-        self.scaler_path = model_dir / "scaler.joblib"
+        self.scaler_path = model_dir / "scaler.joblib"  # TODO: delete this line
 
         logger.info("Initializing DDoS Guard...")
         logger.info(f"Loading Internal Model from: {self.model_path}")
@@ -38,14 +37,14 @@ class DDoSDetector:
 
         try:
             self.model = joblib.load(self.model_path)
-            self.scaler = joblib.load(self.scaler_path)
+            self.scaler = joblib.load(self.scaler_path)  # TODO: delete this line
             logger.info("Model and Scaler loaded successfully.")
         except Exception as e:
             logger.error(f"Error loading model/scaler: {e}")
             sys.exit(1)
 
         self.mitigator = Mitigator(config.mitigation)
-        self.packet_queue: Queue[Any] = Queue()
+        self.packet_queue: Queue[dict] = Queue()
         self.running = False
         self.cic_process = None
 
@@ -98,7 +97,7 @@ class DDoSDetector:
         self.cic_process = subprocess.Popen(
             cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
         )  # nosec B603
-        self._tail_csv(self.config.system.csv_output_path)
+        self._read_csv_live(self.config.system.csv_output_path)
 
     def _run_cicflowmeter_pcap(self, pcap_path: str):
         logger.info(f"Processing PCAP file: {pcap_path}")
@@ -117,7 +116,7 @@ class DDoSDetector:
         subprocess.run(cmd, check=True)  # nosec B603
         self._read_csv_direct(self.config.system.test_mode_output_path)
 
-    def _tail_csv(self, csv_path: str):
+    def _read_csv_live(self, csv_path: str):
         logger.info(f"Waiting for flows in {csv_path}...")
 
         # Wait for file creation
@@ -127,9 +126,9 @@ class DDoSDetector:
                 return
 
         with open(csv_path, "r") as f:
-            headers = f.readline().strip().split(",")
+            features = f.readline().strip().split(",")
             # Go to end of file to read only new flows
-            f.seek(0, 2)
+            f.seek(0, 2)  # TODO: what is this
 
             while self.running:
                 line = f.readline()
@@ -138,9 +137,9 @@ class DDoSDetector:
                     continue
 
                 try:
-                    row = line.strip().split(",")
-                    if len(row) == len(headers):
-                        data_dict = dict(zip(headers, row))
+                    record = line.strip().split(",")
+                    if len(record) == len(features):
+                        data_dict = dict(zip(features, record))
                         self.packet_queue.put(data_dict)
                 except Exception:
                     logger.exception("Error reading flow line.")

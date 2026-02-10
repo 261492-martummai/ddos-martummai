@@ -5,7 +5,7 @@ import threading
 import time
 from email.mime.text import MIMEText
 
-from .config_loader import MitigationConfig
+from .config_loader_oldl import MitigationConfig
 
 logger = logging.getLogger("ddos-martummai")
 
