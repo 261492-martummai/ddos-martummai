@@ -1,16 +1,15 @@
 import logging
 import sys
-import time
 from pathlib import Path
 from queue import Queue
 
 import joblib
 import pandas as pd
 
-from ddos_martummai.config_loader import AppConfig
+from ddos_martummai.init_models import AppConfig
 from ddos_martummai.mitigation import Mitigator
 
-logger = logging.getLogger("ddos-martummai")
+logger = logging.getLogger("DETECTOR")
 
 
 class DDoSDetector:
@@ -21,17 +20,32 @@ class DDoSDetector:
         self.model = self._load_model(model_path)
         self.mitigator = Mitigator(config)
         self.cleaned_packet_queue = cleaned_packet_queue
-        self.running = False
-        self.cic_process = None
+        self.batch_size = config.model.batch_size
 
     def start(self):
         logger.info("Detector: Start")
+        batch = []
         while True:
-            item = self.cleaned_packet_queue.get()
-            if item is None:
-                logger.info("Detector: Received None -> Exiting")
+            try:
+                pkt = self.cleaned_packet_queue.get(timeout=1)
+            except Exception:  # Empty queue timeout
+                if batch:
+                    self._predict_batch(batch)
+                    batch = []
+                continue
+
+            if pkt is None:
+                logger.info("Detector Stopping...")
+                if batch:
+                    self._predict_batch(batch)
+                logger.info("Detector Stopped.")
                 break
-        self._process_queue()
+
+            batch.append(pkt)
+
+            if len(batch) >= self.batch_size:
+                self._predict_batch(batch)
+                batch = []
 
     def _load_model(self, model_path: Path):
         logger.info(f"Loading Internal Model from: {model_path}")
@@ -49,25 +63,6 @@ class DDoSDetector:
         except Exception as e:
             logger.error(f"Error loading model/scaler: {e}")
             sys.exit(1)
-
-    def _process_queue(self):
-        batch = []
-        while True:
-            if not self.cleaned_packet_queue.empty():
-                pkt = self.cleaned_packet_queue.get()
-                if pkt is None:
-                    logger.info("Detector: Received None -> Exiting")
-                    break
-
-                batch.append(pkt)
-                if len(batch) >= self.batch_size:
-                    self._predict_batch(batch)
-                    batch = []
-            else:
-                if batch:
-                    self._predict_batch(batch)
-                    batch = []
-                time.sleep(0.1)
 
     def _predict_batch(self, batch_data: list):
         # Dummy Code

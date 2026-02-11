@@ -10,7 +10,7 @@ from ddos_martummai.detector import DDoSDetector
 from ddos_martummai.preprocessor import DDoSPreprocessor
 from ddos_martummai.reader import Reader
 
-logger = logging.getLogger("ddos-martummai")
+logger = logging.getLogger("MAIN")
 
 
 @click.command()

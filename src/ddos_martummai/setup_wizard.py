@@ -9,7 +9,7 @@ import yaml
 from rich.console import Console
 from rich.panel import Panel
 
-from ddos_martummai.config_loader import AppConfig
+from ddos_martummai.init_models import AppConfig
 
 console = Console()
 

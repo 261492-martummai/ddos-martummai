@@ -11,7 +11,7 @@ from sklearn.preprocessing import MinMaxScaler
 
 from .util import constant
 
-logger = logging.getLogger("ddos-martummai")
+logger = logging.getLogger("PREPROCESSOR")
 
 
 def clean_column_names(df: pd.DataFrame) -> pd.DataFrame:
@@ -201,8 +201,9 @@ class DDoSPreprocessor:
             packet = self.raw_packet_queue.get()
 
             if packet is None:
-                logger.info("Preprocessor: Stopping...")
+                logger.info("Preprocessor Stopping...")
                 self.cleaned_packet_queue.put(None)
+                logger.info("Preprocessor Stopped.")
                 break
 
             df = pd.DataFrame([packet])

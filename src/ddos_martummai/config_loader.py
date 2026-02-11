@@ -1,56 +1,27 @@
-import logging
 import os
 import shutil
 import sys
-from dataclasses import dataclass, field, fields
+from dataclasses import fields
 from pathlib import Path
 from typing import Optional
 
 import yaml
 
+from ddos_martummai.init_models import (
+    AppConfig,
+    MitigationConfig,
+    ModelConfig,
+    SystemConfig,
+)
 from ddos_martummai.logger import attach_file_logging, get_console_logger
 from ddos_martummai.setup_wizard import SetupWizard
 
 logger = get_console_logger()
 
-BASE_DIR = Path(__file__).resolve().parent.parent.parent / "config"
-DEFAULT_CONFIG_PATH = BASE_DIR / "config.yml"
-TEMPLATE_CONFIG_PATH = BASE_DIR / "config.example.yml"
-
-# =========================
-# Dataclasses with defaults
-# =========================
-
-
-@dataclass
-class SystemConfig:
-    interface: str = ""
-    csv_output_path: str = ""
-    test_mode_output_path: str = ""
-    log_file_path: str = ""
-
-
-@dataclass
-class ModelConfig:
-    batch_size: int = 1000
-
-
-@dataclass
-class MitigationConfig:
-    enable_blocking: bool = False
-    block_duration_seconds: int = 180
-    admin_email: str = ""
-    smtp_server: str = ""
-    smtp_port: int = 587
-    smtp_user: str = ""
-    smtp_password: str = ""
-
-
-@dataclass
-class AppConfig:
-    system: SystemConfig = field(default_factory=SystemConfig)
-    model: ModelConfig = field(default_factory=ModelConfig)
-    mitigation: MitigationConfig = field(default_factory=MitigationConfig)
+BASE_DIR = Path(__file__).resolve().parent.parent.parent
+CONFIG_DIR = BASE_DIR / "config"
+DEFAULT_CONFIG_PATH = CONFIG_DIR / "config.yml"
+TEMPLATE_CONFIG_PATH = CONFIG_DIR / "config.example.yml"
 
 
 class DDoSConfigLoader:
@@ -59,7 +30,7 @@ class DDoSConfigLoader:
         self.override_env = override_env
         self.app_config: AppConfig = None
 
-        logger.info("Initializing Configuration...")
+        logger.info("Load Configuration")
 
         self._ensure_config_file_exists()
         self._load_app_config()
@@ -67,6 +38,8 @@ class DDoSConfigLoader:
         self._check_override_env()
         self._validate_config()
         self._setup_logger()
+
+        logger.info("Configuration Loaded Successfully")
 
     def _ensure_config_file_exists(self):
         if self.config_file.exists():
@@ -140,7 +113,7 @@ class DDoSConfigLoader:
                         setattr(config, env_field.name, val)
 
                     except ValueError:
-                        logging.error(
+                        logger.error(
                             f"Warning: Invalid value for {env_key}, expected {env_field.type}"
                         )
 
@@ -164,7 +137,7 @@ class DDoSConfigLoader:
                 errors.append("SMTP Password is required")
 
         for error in errors:
-            logging.warning(f"Config Validator: {error}")
+            logger.warning(f"Config Validator: {error}")
 
         if errors:
             # Interactive Mode (User is running manually on Terminal)
@@ -182,9 +155,9 @@ class DDoSConfigLoader:
 
             else:
                 # Service Mode (Headless / Background Process)
-                logging.critical(f"[FATAL] Configuration invalid at {self.config_path}")
-                logging.critical(f"Missing fields: {', '.join(errors)}")
-                logging.critical(
+                logger.critical(f"[FATAL] Configuration invalid at {self.config_path}")
+                logger.critical(f"Missing fields: {', '.join(errors)}")
+                logger.critical(
                     "Please run 'ddos-martummai' manually to setup configuration first."
                 )
                 sys.exit(1)

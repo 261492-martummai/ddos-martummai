@@ -5,9 +5,9 @@ import subprocess  # nosec B404
 import time
 from queue import Queue
 
-from ddos_martummai.config_loader import AppConfig
+from ddos_martummai.init_models import AppConfig
 
-logger = logging.getLogger("ddos-martummai")
+logger = logging.getLogger("READER")
 
 
 class Reader:
@@ -34,7 +34,14 @@ class Reader:
     def stop(self):
         self.running = False
         if self.cic_process:
+            logger.info("Terminating CICFlowMeter process...")
             self.cic_process.terminate()
+            try:
+                self.cic_process.wait(timeout=2)
+            except subprocess.TimeoutExpired:
+                self.cic_process.kill()
+                self.cic_process.wait()
+            logger.info("CICFlowMeter process terminated.")
 
     def _run_cicflowmeter_live(self):
         logger.info(
@@ -61,7 +68,7 @@ class Reader:
         self._read_csv_live(self.config.system.csv_output_path)
 
     def _read_csv_live(self, csv_path: str):
-        logger.info(f"Waiting for flows in {csv_path}...")
+        logger.info(f"Capturing flows in {csv_path}... CRTL+C to stop.")
 
         # Wait for file creation
         while not os.path.exists(csv_path):
@@ -88,8 +95,9 @@ class Reader:
                 except Exception:
                     logger.exception("Error reading flow line.")
 
-            logger.info("Reader: Stopping...")
+            logger.info("Reader Stopping...")
             self.raw_packet_queue.put(None)
+            logger.info("Reader Stopped.")
 
     # def _run_cicflowmeter_pcap(self, pcap_path: str):
     #     logger.info(f"Processing PCAP file: {pcap_path}")

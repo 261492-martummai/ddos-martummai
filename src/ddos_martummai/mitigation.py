@@ -1,14 +1,15 @@
 import logging
-import psutil
 import smtplib
 import subprocess  # nosec B404
 import threading
 import time
 from email.mime.text import MIMEText
 
-from .config_loader import AppConfig
+import psutil
 
-logger = logging.getLogger("ddos-martummai")
+from ddos_martummai.init_models import AppConfig
+
+logger = logging.getLogger("MITIGATOR")
 
 
 class Mitigator:
