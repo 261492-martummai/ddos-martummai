@@ -2,6 +2,7 @@ import logging
 import os
 import subprocess  # nosec B404
 import time
+import pandas as pd
 from queue import Queue
 
 from ddos_martummai.init_models import AppConfig
@@ -25,10 +26,10 @@ class Reader:
 
         if self.mode == "live":
             self._run_cicflowmeter_live()
+        elif self.mode == "csv":
+            self._read_csv_direct(self.config.system.csv_output_path)
         # elif mode == "pcap":
         #     self._run_cicflowmeter_pcap(input_file)
-        # elif mode == "csv":
-        #     self._read_csv_direct(input_file)
 
     def stop(self):
         self.running = False
@@ -113,15 +114,18 @@ class Reader:
     #     subprocess.run(cmd, check=True)  # nosec B603
     #     self._read_csv_direct(self.config.system.test_mode_output_path)
 
-    # def _read_csv_direct(self, csv_path: str):
-    #     if not os.path.exists(csv_path):
-    #         logger.error(f"CSV file not found at {csv_path}")
-    #         return
+    def _read_csv_direct(self, csv_path: str):
+        if not os.path.exists(csv_path):
+            logger.error(f"CSV file not found at {csv_path}")
+            return
 
-    #     df = pd.read_csv(csv_path)
-    #     logger.info(f"Loaded {len(df)} flows. Processing...")
+        df = pd.read_csv(csv_path)
+        logger.info(f"Loaded {len(df)} flows. Processing...")
 
-    #     for _, row in df.iterrows():
-    #         if not self.running:
-    #             break
-    #         self.packet_queue.put(row.to_dict())
+        for _, row in df.iterrows():
+            if not self.running:
+                logger.info("Reader Stopping...")
+                self.raw_packet_queue.put(None)
+                logger.info("Reader Stopped.")
+                break
+            self.raw_packet_queue.put(row.to_dict())

@@ -29,18 +29,27 @@ class DDoSDetector:
         logger.info("Detector: Start")
         batch = []
         while True:
-            pkt = self.cleaned_packet_queue.get()
-
-            if pkt is None:
+            
+            if not self.cleaned_packet_queue.empty():  
+                packet = self.cleaned_packet_queue.get()
+            else:
                 logger.info("Detector Stopping...")
-                if batch:
-                    self._predict_batch(batch)
                 logger.info("Detector Stopped.")
                 break
+            
+            
+            # pkt = self.cleaned_packet_queue.get()
+            # if pkt is None:
+            #     logger.info("Detector Stopping...")
+            #     if batch:
+            #         self._predict_batch(batch)
+            #     logger.info("Detector Stopped.")
+            #     break
 
-            batch.append(pkt)
 
-            if len(batch) >= self.batch_size:
+            # if len(batch) >= self.batch_size:
+            if packet is not None:
+                batch.append(packet)
                 self._predict_batch(batch)
                 batch = []
 
@@ -55,34 +64,21 @@ class DDoSDetector:
             sys.exit(1)
 
         try:
-            self.model = joblib.load(model_path)
             logger.info("Model loaded successfully.")
+            return joblib.load(model_path)
         except Exception as e:
             logger.error(f"Error loading model/scaler: {e}")
             sys.exit(1)
 
     def _predict_batch(self, batch_data: list):
-        # Dummy Code
-        if not batch_data:
-            return
-        df = pd.DataFrame(batch_data)
-
+        df = pd.DataFrame(batch_data[0])
         try:
-            # Select only required features
-            data = {
-                "Color": ["Red", "Blue", "Green", "Red", "Blue"],
-                "Amount": [10, 20, 15, 25, 30],
-            }
-            df = pd.DataFrame(data)
-            X = pd.get_dummies(df["Color"], prefix="Color")
-            # Convert to numeric, handle errors
-            X = X.apply(pd.to_numeric, errors="coerce").fillna(0)
-
             # Predict
-            predictions = self.model.predict(X)
+            predictions = self.model.predict(df)
 
             # TODO: maybe switch to % alert
             for i, pred in enumerate(predictions):
+                print(pred)
                 if pred == 1:  # Attack Detected
                     # Try to find IP column with various possible names
                     src_ip = None

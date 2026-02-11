@@ -1,40 +1,27 @@
 import logging
 from pathlib import Path
 from queue import Queue
-from typing import Dict, List
+from typing import Dict
 
 import joblib
 import numpy as np
 import pandas as pd
 from sklearn.preprocessing import MinMaxScaler
-
-from .util import constant
+from ddos_martummai.util.constant import *
 
 logger = logging.getLogger("PREPROCESSOR")
 
-
 def clean_column_names(df: pd.DataFrame) -> pd.DataFrame:
-    """Strip whitespace from column names."""
+    """Strip whitespace from column names and normalize to lowercase with underscores."""
     df_clean = df.copy()
     df_clean.columns = df_clean.columns.str.strip()
+
     return df_clean
 
 
-def select_numeric_columns(df: pd.DataFrame) -> pd.DataFrame:
+def select_numeric_columns(df: pd.DataFrame, feature_cols: list) -> pd.DataFrame:
     """Select only numeric columns from dataframe."""
-    numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
-    return df[numeric_cols].copy()
-
-
-def select_feature_columns(df: pd.DataFrame, columns: List[str]) -> pd.DataFrame:
-    """Select specified feature columns."""
-    missing_cols = set(columns) - set(df.columns)
-    if missing_cols:
-        logger.warning(f"Missing columns: {missing_cols}")
-        available_cols = [col for col in columns if col in df.columns]
-        return df[available_cols].copy()
-    return df[columns].copy()
-
+    return df[feature_cols].copy()
 
 def handle_missing_values(df: pd.DataFrame) -> pd.DataFrame:
     """Fill missing values with median."""
@@ -115,23 +102,21 @@ def process_chunk(
     Returns:
         Tuple of (processed_df, scaler)
     """
-    feature_cols = constant.FEATURE_COLUMNS
-    rename_map = constant.COLUMN_RENAME_MAP
+    rename_map = COLUMN_RENAME_MAP
     processed_chunks = []
     total_rows = 0
 
     try:
-        for i, chunk in enumerate(df, chunksize=chunk_size):
+        for i in range(0, len(df), chunk_size):
+            chunk = df.iloc[i:i + chunk_size]
             df = clean_column_names(chunk)
-            df = select_numeric_columns(df)
-            df = select_feature_columns(df, feature_cols)
+            df = select_numeric_columns(df, list(rename_map.keys()))
+            df = rename_columns(df, rename_map)
             df = convert_to_float32(df)
             df = handle_missing_values(df)
             df = handle_infinite_values(df)
             df = remove_duplicates(df)
-            df = rename_columns(df, rename_map)
             df = scale_features(df, scaler)
-
             processed_chunks.append(df)
             total_rows += len(df)
             logger.info(f"Processed {i + 1} chunks ({total_rows} rows)")
@@ -196,18 +181,30 @@ class DDoSPreprocessor:
         return self.cleaned_packet_queue
 
     def start(self):
+        logger.info("Preprocessor Started...")
         while True:
-            packet = self.raw_packet_queue.get()
-
-            if packet is None:
+            
+            if not self.raw_packet_queue.empty():  
+                packet = self.raw_packet_queue.get()
+            else:
                 logger.info("Preprocessor Stopping...")
                 self.cleaned_packet_queue.put(None)
                 logger.info("Preprocessor Stopped.")
                 break
-
+            
             df = pd.DataFrame([packet])
-            processed_df = self.transform(df)
+            # TEST by prem
+            try:
+                processed_df = self.transform(df)
+            except Exception:
+                logger.error("Error processing packet, stop")
+                
+                self.cleaned_packet_queue.put(None)
+
+                logger.info("Preprocessor Stopped.")
+                break
             self.cleaned_packet_queue.put(processed_df.to_dict())
+
 
     def transform(self, df: pd.DataFrame) -> pd.DataFrame:
         """
