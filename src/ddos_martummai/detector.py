@@ -14,7 +14,10 @@ logger = logging.getLogger("DETECTOR")
 
 class DDoSDetector:
     def __init__(
-        self, model_path: Path, config: AppConfig, cleaned_packet_queue: Queue
+        self,
+        model_path: Path,
+        config: AppConfig,
+        cleaned_packet_queue: Queue[dict | None],
     ):
         self.config = config
         self.model = self._load_model(model_path)
@@ -26,13 +29,7 @@ class DDoSDetector:
         logger.info("Detector: Start")
         batch = []
         while True:
-            try:
-                pkt = self.cleaned_packet_queue.get(timeout=1)
-            except Exception:  # Empty queue timeout
-                if batch:
-                    self._predict_batch(batch)
-                    batch = []
-                continue
+            pkt = self.cleaned_packet_queue.get()
 
             if pkt is None:
                 logger.info("Detector Stopping...")
@@ -81,11 +78,8 @@ class DDoSDetector:
             # Convert to numeric, handle errors
             X = X.apply(pd.to_numeric, errors="coerce").fillna(0)
 
-            # Scale
-            X_scaled = self.scaler.transform(X)
-
             # Predict
-            predictions = self.model.predict(X_scaled)
+            predictions = self.model.predict(X)
 
             # TODO: maybe switch to % alert
             for i, pred in enumerate(predictions):

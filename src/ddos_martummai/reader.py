@@ -1,6 +1,5 @@
 import logging
 import os
-import queue
 import subprocess  # nosec B404
 import time
 from queue import Queue
@@ -13,12 +12,12 @@ logger = logging.getLogger("READER")
 class Reader:
     def __init__(self, config: AppConfig, mode: str = "live"):
         self.config = config
-        self.raw_packet_queue = queue.Queue()
+        self.raw_packet_queue: Queue[dict | None] = Queue()
         self.mode = mode
         self.running = False
         self.cic_process = None
 
-    def get_queue(self) -> Queue:
+    def get_queue(self) -> Queue[dict | None]:
         return self.raw_packet_queue
 
     def start(self):
@@ -62,9 +61,7 @@ class Reader:
         ]
 
         # Run in background, suppress standard output to keep CLI clean
-        self.cic_process = subprocess.Popen(
-            cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
-        )  # nosec B603
+        self.cic_process = subprocess.Popen(cmd, stdout=None, stderr=None)  # nosec B603
         self._read_csv_live(self.config.system.csv_output_path)
 
     def _read_csv_live(self, csv_path: str):

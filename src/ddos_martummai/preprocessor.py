@@ -1,5 +1,4 @@
 import logging
-import queue
 from pathlib import Path
 from queue import Queue
 from typing import Dict, List
@@ -188,12 +187,12 @@ def load_scaler(scaler_path: str) -> MinMaxScaler:
 class DDoSPreprocessor:
     """Production-ready preprocessor for DDoS detection."""
 
-    def __init__(self, scaler_path: str, raw_packet_queue: Queue):
+    def __init__(self, scaler_path: str, raw_packet_queue: Queue[dict | None]):
         self.scaler = load_scaler(scaler_path)
-        self.raw_packet_queue = raw_packet_queue
-        self.cleaned_packet_queue = queue.Queue()
+        self.raw_packet_queue: Queue[dict | None] = raw_packet_queue
+        self.cleaned_packet_queue: Queue[dict | None] = Queue()
 
-    def get_queue(self) -> Queue:
+    def get_queue(self) -> Queue[dict | None]:
         return self.cleaned_packet_queue
 
     def start(self):

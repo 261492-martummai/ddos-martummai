@@ -28,7 +28,7 @@ class DDoSConfigLoader:
     def __init__(self, config_path: Optional[str] = None, override_env: bool = False):
         self.config_file = Path(config_path) if config_path else DEFAULT_CONFIG_PATH
         self.override_env = override_env
-        self.app_config: AppConfig = None
+        self.app_config: AppConfig = AppConfig()
 
         logger.info("Load Configuration")
 
@@ -143,7 +143,7 @@ class DDoSConfigLoader:
             # Interactive Mode (User is running manually on Terminal)
             if sys.stdin.isatty():
                 print("\n[!] Configuration incomplete.")
-                wizard = SetupWizard(self.config_path, self.app_config)
+                wizard = SetupWizard(self.config_file, self.app_config)
                 success = wizard.run()
 
                 if not success:
@@ -155,7 +155,7 @@ class DDoSConfigLoader:
 
             else:
                 # Service Mode (Headless / Background Process)
-                logger.critical(f"[FATAL] Configuration invalid at {self.config_path}")
+                logger.critical(f"[FATAL] Configuration invalid at {self.config_file}")
                 logger.critical(f"Missing fields: {', '.join(errors)}")
                 logger.critical(
                     "Please run 'ddos-martummai' manually to setup configuration first."
