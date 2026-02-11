@@ -106,7 +106,7 @@ class DDoSConfigLoader:
                         if env_field.type is int:
                             val = int(env_value)
                         elif env_field.type is bool:
-                            val = env_value.lower() == "true"
+                            val = env_value.lower() in ("true", "1")
                         else:
                             val = env_value
 
