@@ -25,6 +25,7 @@ FEATURE_COLUMNS = [
 ]
 
 COLUMN_RENAME_MAP = {
+    "src_ip": "Source IP",
     "flow_duration": "Flow Duration",
     "tot_fwd_pkts": "Total Fwd Packets",
     "tot_bwd_pkts": "Total Backward Packets",

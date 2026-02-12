@@ -42,9 +42,15 @@ def main(config_path, test_mode, file_path, override_env, verbose):
         if not file_path:
             click.echo("Error: --file is required for test mode")
             return
-        if file_path.endswith(".pcap"):
+
+        file_path = Path(file_path)
+        if not file_path.exists():
+            click.echo(f"Error: File not found at {file_path}")
+            return
+
+        if file_path.suffix == ".pcap":
             mode = "pcap"
-        elif file_path.endswith(".csv"):
+        elif file_path.suffix == ".csv":
             mode = "csv"
         else:
             click.echo("Error: Unsupported file format. Use .pcap or .csv")
@@ -55,12 +61,15 @@ def main(config_path, test_mode, file_path, override_env, verbose):
     reader = Reader(app_config, mode)
     preprocessor = DDoSPreprocessor(
         scaler_path,
-        reader.get_queue(),  # get Queue from Preprocessor
+        app_config,
+        reader.get_queue(),  # get Queue from Reader
     )
-
     detector = DDoSDetector(model_path, app_config, preprocessor.get_queue())
 
-    t_reader = threading.Thread(target=reader.start)
+    if mode == "live":
+        t_reader = threading.Thread(target=reader.start)
+    else:
+        t_reader = threading.Thread(target=reader.start, args=(file_path,))
     t_prep = threading.Thread(target=preprocessor.start)
     t_det = threading.Thread(target=detector.start)
 
@@ -73,15 +82,56 @@ def main(config_path, test_mode, file_path, override_env, verbose):
         while True:
             time.sleep(1)
 
-    except KeyboardInterrupt:
-        logger.warning("Keyboard Interrupt detected. Shutting down...")
+            reader_died = not t_reader.is_alive()
+            prep_died = not t_prep.is_alive()
+            det_died = not t_det.is_alive()
+
+            if mode == "live":
+                if reader_died or prep_died or det_died:
+                    logger.critical(
+                        "CRITICAL ERROR: A core service thread has died unexpectedly!"
+                    )
+                    if reader_died:
+                        logger.critical(" -> Reader Service: DEAD")
+                    if prep_died:
+                        logger.critical(" -> Preprocessor Service: DEAD")
+                    if det_died:
+                        logger.critical(" -> Detector Service: DEAD")
+
+                    raise RuntimeError("System integrity compromised.")
+
+            else:
+                if det_died:
+                    logger.info("File processing completed (Detector finished).")
+                    break
+
+                if prep_died and not reader_died:
+                    logger.warning("Preprocessor died prematurely!")
+
+    except (KeyboardInterrupt, RuntimeError) as e:
+        if isinstance(e, RuntimeError):
+            logger.error(f"Initiating EMERGENCY SHUTDOWN due to: {e}")
+        else:
+            logger.warning("Keyboard Interrupt detected. Stopping...")
+
         logger.info("Stopping DDoS Guard Service...")
         reader.stop()
+
+        if isinstance(e, RuntimeError):
+            try:
+                reader.get_queue().put(None)
+            except Exception as ex:
+                logger.error(f"Failed to inject poison pill: {ex}")
+
+        logger.info("Waiting for worker threads to finish")
 
         t_reader.join()
         t_prep.join()
         t_det.join()
+
         logger.info("--- All systems shutdown safely ---")
+        if isinstance(e, RuntimeError):
+            exit(1)
 
 
 if __name__ == "__main__":
