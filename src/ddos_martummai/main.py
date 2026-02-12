@@ -62,7 +62,7 @@ def main(config_path, test_mode, file_path, override_env, verbose):
     preprocessor = DDoSPreprocessor(
         scaler_path,
         app_config.model.batch_size,
-        reader.get_queue(),  # get Queue from Reader
+        reader.get_queue(),
     )
     detector = DDoSDetector(model_path, app_config, preprocessor.get_queue())
 
