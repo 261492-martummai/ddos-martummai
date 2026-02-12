@@ -49,17 +49,6 @@ def handle_infinite_values(df: pd.DataFrame) -> pd.DataFrame:
     logger.info("Replaced infinite values")
     return df_clean
 
-
-def remove_duplicates(df: pd.DataFrame) -> pd.DataFrame:
-    """Remove duplicate rows."""
-    initial_rows = len(df)
-    df_clean = df.drop_duplicates().copy()
-    removed = initial_rows - len(df_clean)
-    if removed > 0:
-        logger.info(f"Removed {removed} duplicate rows")
-    return df_clean
-
-
 def rename_columns(df: pd.DataFrame, rename_map: Dict[str, str]) -> pd.DataFrame:
     """Rename columns according to mapping."""
     return df.rename(columns=rename_map)
@@ -117,7 +106,6 @@ def process_chunk(
             df = rename_columns(df, rename_map)
             df = handle_missing_values(df)
             df = handle_infinite_values(df)
-            df = remove_duplicates(df)
             df = scale_features(df, scaler)
             
             df.insert(0, 'src_ip', src_ip_df.reset_index(drop=True))

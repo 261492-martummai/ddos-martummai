@@ -62,7 +62,7 @@ def main(config_path, test_mode, file_path, override_env, verbose):
     preprocessor = DDoSPreprocessor(
         scaler_path,
         app_config.model.batch_size,
-        reader.get_queue(), 
+        reader.get_queue(),  # get Queue from Reader
     )
     detector = DDoSDetector(model_path, app_config, preprocessor.get_queue())
 
@@ -74,17 +74,9 @@ def main(config_path, test_mode, file_path, override_env, verbose):
     t_det = threading.Thread(target=detector.start)
 
     logger.info("Starting worker threads...")
-    # t_det.start()
-    # t_prep.start()
-    # t_reader.start()
-    t_reader.start()
-    t_reader.join()   # wait until reader finishes
-
-    t_prep.start()
-    t_prep.join()     # wait until preprocessor finishes
-
     t_det.start()
-    t_det.join()      # wait until detector finishes
+    t_prep.start()
+    t_reader.start()
 
     try:
         while True:
