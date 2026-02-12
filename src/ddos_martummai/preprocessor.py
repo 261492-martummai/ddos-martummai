@@ -1,7 +1,7 @@
 import logging
 from pathlib import Path
 from queue import Queue
-from typing import Dict
+from typing import Dict, Tuple
 
 import joblib
 import numpy as np
@@ -19,9 +19,9 @@ def clean_column_names(df: pd.DataFrame) -> pd.DataFrame:
     return df_clean
 
 
-def select_numeric_columns(df: pd.DataFrame, feature_cols: list) -> pd.DataFrame:
+def select_numeric_columns(df: pd.DataFrame, feature_cols: list) -> Tuple[pd.Series, pd.DataFrame]:
     """Select only numeric columns from dataframe."""
-    return df[feature_cols].copy()
+    return df["src_ip"].copy(), df[feature_cols].copy()
 
 def handle_missing_values(df: pd.DataFrame) -> pd.DataFrame:
     """Fill missing values with median."""
@@ -89,7 +89,7 @@ def process_chunk(
     df: pd.DataFrame,
     scaler: MinMaxScaler,
     chunk_size: int = 1000,
-) -> pd.DataFrame:
+) -> Tuple[pd.DataFrame, pd.DataFrame]:
     """
     Process a single chunk through the complete pipeline.
 
@@ -104,30 +104,35 @@ def process_chunk(
     """
     rename_map = COLUMN_RENAME_MAP
     processed_chunks = []
+    src_id_dfs = []
     total_rows = 0
 
     try:
         for i in range(0, len(df), chunk_size):
             chunk = df.iloc[i:i + chunk_size]
             df = clean_column_names(chunk)
-            df = select_numeric_columns(df, list(rename_map.keys()))
+            src_ip_df, df = select_numeric_columns(df, list(rename_map.keys()))
             df = rename_columns(df, rename_map)
             df = convert_to_float32(df)
             df = handle_missing_values(df)
             df = handle_infinite_values(df)
             df = remove_duplicates(df)
             df = scale_features(df, scaler)
+            
             processed_chunks.append(df)
+            src_id_dfs.append(src_ip_df)
+            
             total_rows += len(df)
             logger.info(f"Processed {i + 1} chunks ({total_rows} rows)")
 
         if processed_chunks:
             df = pd.concat(processed_chunks, ignore_index=True)
+            src_id_df = pd.concat(src_id_dfs, ignore_index=True)
             logger.info(f"Preprocessing complete. Total rows: {len(df)}")
-            return df
+            return src_id_df, df
         else:
             logger.warning("No data processed")
-            return pd.DataFrame()
+            return pd.DataFrame(), pd.DataFrame()
     except Exception as e:
         logger.error(f"Error during preprocessing: {str(e)}")
         raise
@@ -136,7 +141,7 @@ def process_chunk(
 def preprocess_realtime_data(
     df: pd.DataFrame,
     scaler: MinMaxScaler,
-) -> pd.DataFrame:
+) -> Tuple[pd.DataFrame, pd.DataFrame]:
     """
     Preprocess real-time data for inference using pre-fitted scaler.
 
@@ -149,8 +154,8 @@ def preprocess_realtime_data(
     Returns:
         Processed dataframe ready for model inference
     """
-    processed_df = process_chunk(df, scaler)
-    return processed_df
+    src_id_df, processed_df = process_chunk(df, scaler)
+    return src_id_df, processed_df
 
 
 def save_scaler(scaler: MinMaxScaler, output_path: str) -> None:
@@ -183,30 +188,38 @@ class DDoSPreprocessor:
     def start(self):
         logger.info("Preprocessor Started...")
         while True:
+            batch = []
             
-            if not self.raw_packet_queue.empty():  
-                packet = self.raw_packet_queue.get()
-            else:
-                logger.info("Preprocessor Stopping...")
-                self.cleaned_packet_queue.put(None)
-                logger.info("Preprocessor Stopped.")
+            # Collect up to 1000 packets from queue
+            while len(batch) < 1000:
+                if not self.raw_packet_queue.empty():
+                    packet = self.raw_packet_queue.get()
+                    batch.append(packet)
+                else:
+                    break
+            
+            # If no packets collected at all, stop
+            if not batch:
+                self.stop()
                 break
             
-            df = pd.DataFrame([packet])
-            # TEST by prem
+            df = pd.DataFrame(batch)
             try:
-                processed_df = self.transform(df)
+                src_id_df, processed_df = self.transform(df)
             except Exception:
-                logger.error("Error processing packet, stop")
-                
-                self.cleaned_packet_queue.put(None)
-
-                logger.info("Preprocessor Stopped.")
+                self.stop()        
                 break
+                    
+            # concat src_id back to processed df
+            processed_df.insert(0, 'src_ip', src_id_df)
             self.cleaned_packet_queue.put(processed_df.to_dict())
-
-
-    def transform(self, df: pd.DataFrame) -> pd.DataFrame:
+    
+    def stop(self):
+        logger.info("Preprocessor Stopping...")
+        self.cleaned_packet_queue.put(None)
+        logger.info("Preprocessor Stopped.")
+        
+    def transform(self, df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
         """
         Transform new data using fitted scaler (for inference).
 
