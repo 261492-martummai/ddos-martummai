@@ -13,6 +13,7 @@ logger = logging.getLogger("DETECTOR")
 
 IP_COLUMN_NAME = "src_ip"
 
+
 class DDoSDetector:
     def __init__(
         self,
@@ -56,7 +57,6 @@ class DDoSDetector:
             logger.info("Model loaded successfully.")
 
     def _predict_batch(self, batch_df: pd.DataFrame):
-        # Dummy Code
         if batch_df.empty:
             return
 
@@ -69,24 +69,28 @@ class DDoSDetector:
             results = pd.DataFrame({"ip": src_ips, "is_attack": predictions})
 
             # TODO: maybe switch to % alert
-            # ip_stats = results.groupby("ip")["is_attack"].agg(["count", "mean"])
+            ip_stats = results.groupby("ip")["is_attack"].agg(["count", "mean"])
 
             logger.info(
                 f"\n--- BATCH PREDICTIONS ({len(results)} rows) ---\n"
                 + results.to_string(index=False)
-                # + "\n--- IP STATISTICS SUMMARY ---\n"
-                # + ip_stats.to_string()
+                + "\n--- IP STATISTICS SUMMARY ---\n"
+                + ip_stats.to_string()
             )
             # # ตั้งค่า Threshold (ควรดึงจาก Config)
             # # เช่น 0.5 หมายถึง ถ้าเกิน 50% ของ traffic จาก IP นี้เป็น Attack -> Block
-            # ATTACK_THRESHOLD = 0.5
-            # MIN_PACKETS = 2 # กันเหนียว: ต้องส่งมาอย่างน้อย 2 packet ถึงจะตัดสิน (ลด noise)
+            ATTACK_THRESHOLD = 0.5
+            MIN_PACKETS = 2  # กันเหนียว: ต้องส่งมาอย่างน้อย 2 packet ถึงจะตัดสิน (ลด noise)
 
             # # Filter เอาเฉพาะคนที่เป็น Hacker (Mean > Threshold)
-            # attackers = ip_stats[
-            #     (ip_stats['mean'] > ATTACK_THRESHOLD) &
-            #     (ip_stats['count'] >= MIN_PACKETS)
-            # ]
+            attackers = ip_stats[
+                (ip_stats["mean"] > ATTACK_THRESHOLD)
+                & (ip_stats["count"] >= MIN_PACKETS)
+            ]
+            for ip, row in attackers.iterrows():
+                logger.warning(f"[DETECTED] DDoS from {ip}")
+                self.mitigator.send_alert(str(ip), row.to_string())
+                # self.mitigator.block_ip(ip)
 
             # # 5. Mitigation Action
 

@@ -7,10 +7,10 @@ import joblib
 import numpy as np
 import pandas as pd
 from sklearn.preprocessing import MinMaxScaler
-from ddos_martummai.detector import IP_COLUMN_NAME
 from ddos_martummai.util.constant import COLUMN_RENAME_MAP
 
 logger = logging.getLogger("PREPROCESSOR")
+
 
 def clean_column_names(df: pd.DataFrame) -> pd.DataFrame:
     """Strip whitespace from column names and normalize to lowercase with underscores."""
@@ -20,10 +20,13 @@ def clean_column_names(df: pd.DataFrame) -> pd.DataFrame:
     return df_clean
 
 
-def select_numeric_columns(df: pd.DataFrame, feature_cols: list) -> Tuple[pd.Series, pd.DataFrame]:
+def select_numeric_columns(
+    df: pd.DataFrame, feature_cols: list
+) -> Tuple[pd.DataFrame, pd.DataFrame]:
     """Select only numeric columns from dataframe."""
     src_ip_df = df[["src_ip"]].copy()
     return src_ip_df, df[feature_cols].copy()
+
 
 def handle_missing_values(df: pd.DataFrame) -> pd.DataFrame:
     """Fill missing values with median."""
@@ -48,6 +51,7 @@ def handle_infinite_values(df: pd.DataFrame) -> pd.DataFrame:
     df_clean.fillna(medians, inplace=True)
     logger.info("Replaced infinite values")
     return df_clean
+
 
 def rename_columns(df: pd.DataFrame, rename_map: Dict[str, str]) -> pd.DataFrame:
     """Rename columns according to mapping."""
@@ -99,7 +103,7 @@ def process_chunk(
 
     try:
         for i in range(0, len(df), batch_size):
-            chunk = df.iloc[i:i + batch_size]
+            chunk = df.iloc[i : i + batch_size]
             df = clean_column_names(chunk)
             src_ip_df, df = select_numeric_columns(df, list(rename_map.keys()))
             df = convert_to_float32(df)
@@ -107,17 +111,17 @@ def process_chunk(
             df = handle_missing_values(df)
             df = handle_infinite_values(df)
             df = scale_features(df, scaler)
-            
-            df.insert(0, 'src_ip', src_ip_df.reset_index(drop=True))
+
+            df.insert(0, "src_ip", src_ip_df.reset_index(drop=True)["src_ip"])
             processed_batchs.append(df)
-            
+
             total_rows += len(df)
             logger.info(f"Processed {i + 1} batches ({total_rows} rows)")
 
         if processed_batchs:
             df = pd.concat(processed_batchs, ignore_index=True)
             logger.info(f"Preprocessing complete. Total rows: {len(df)}")
-            return  df
+            return df
         else:
             logger.warning("No data processed")
             return pd.DataFrame()
@@ -166,7 +170,9 @@ def load_scaler(scaler_path: str) -> MinMaxScaler:
 class DDoSPreprocessor:
     """Production-ready preprocessor for DDoS detection."""
 
-    def __init__(self, scaler_path: str, batch_size: int, raw_packet_queue: Queue[dict | None]):
+    def __init__(
+        self, scaler_path: str, batch_size: int, raw_packet_queue: Queue[dict | None]
+    ):
         self.scaler = load_scaler(scaler_path)
         self.batch_size = batch_size
         self.raw_packet_queue: Queue[dict | None] = raw_packet_queue
@@ -174,7 +180,7 @@ class DDoSPreprocessor:
 
     def get_queue(self) -> Queue[pd.DataFrame | None]:
         return self.cleaned_packet_queue
-        
+
     def start(self):
         buffer = []
 
@@ -215,12 +221,12 @@ class DDoSPreprocessor:
             logger.debug(f"Flushed batch of {len(buffer)} packets")
         except Exception as e:
             logger.error(f"Error flushing buffer: {e}")
-            
+
     def stop(self):
         logger.info("Preprocessor Stopping...")
         self.cleaned_packet_queue.put(None)
         logger.info("Preprocessor Stopped.")
-    
+
     def transform(self, df: pd.DataFrame) -> pd.DataFrame:
         """
         Transform new data using fitted scaler (for inference).

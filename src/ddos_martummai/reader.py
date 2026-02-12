@@ -6,7 +6,6 @@ import pandas as pd
 from queue import Queue
 from typing import Optional
 
-import pandas as pd
 
 from ddos_martummai.init_models import AppConfig
 

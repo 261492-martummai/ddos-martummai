@@ -89,9 +89,17 @@ class Mitigator:
         ):
             return
 
+        logger.info(f"Initiating email alert for {ip_address}...")
         msg = MIMEText(
-            f"DDoS Attack Detected from IP: {ip_address}\n\nFlow Details:\n{flow_info}"
+            f"DDoS Attack Detected from IP: {ip_address}\n\n"
+            f"Detection Time   : {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())}\n"
+            f"System Interface : {self.config.system.interface}\n"
+            f"IP               : {ip_address}\n\n"
+            f"Action Taken     : IP BLOCKED for {self.config.mitigation.block_duration_seconds} seconds\n\n"
+            f"--- FLOW STATISTICS ---\n"
+            f"{flow_info}\n"
         )
+
         msg["Subject"] = f"ALERT: DDoS Attack Detected - {ip_address}"
         msg["From"] = self.config.mitigation.smtp_user
         msg["To"] = self.config.mitigation.admin_email
@@ -114,7 +122,7 @@ class Mitigator:
                 logger.error(f"Failed to send email: {e}")
 
         # Run in thread to not block main processing
-        threading.Thread(target=send_async, daemon=True).start()
+        threading.Thread(target=send_async, daemon=False).start()
 
     def block_ip(self, ip_address: str):
         if not self._valid_ip(ip_address):
