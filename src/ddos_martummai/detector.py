@@ -11,13 +11,14 @@ from ddos_martummai.mitigation import Mitigator
 
 logger = logging.getLogger("DETECTOR")
 
+IP_COLUMN_NAME = "src_ip"
 
 class DDoSDetector:
     def __init__(
         self,
         model_path: Path,
         config: AppConfig,
-        cleaned_packet_queue: Queue[dict | None],
+        cleaned_packet_queue: Queue[pd.DataFrame | None],
     ):
         self.config = config
         self.model = self._load_model(model_path)
@@ -27,31 +28,14 @@ class DDoSDetector:
 
     def start(self):
         logger.info("Detector: Start")
-        batch = []
         while True:
-            
-            if not self.cleaned_packet_queue.empty():  
-                packet = self.cleaned_packet_queue.get()
-            else:
-                logger.info("Detector Stopping...")
+            batch = self.cleaned_packet_queue.get()
+
+            if batch is None:
                 logger.info("Detector Stopped.")
                 break
-            
-            
-            # pkt = self.cleaned_packet_queue.get()
-            # if pkt is None:
-            #     logger.info("Detector Stopping...")
-            #     if batch:
-            #         self._predict_batch(batch)
-            #     logger.info("Detector Stopped.")
-            #     break
 
-
-            # if len(batch) >= self.batch_size:
-            if packet is not None:
-                batch.append(packet)
-                self._predict_batch(batch)
-                batch = []
+            self._predict_batch(batch)
 
     def _load_model(self, model_path: Path):
         logger.info(f"Loading Internal Model from: {model_path}")
@@ -64,34 +48,47 @@ class DDoSDetector:
             sys.exit(1)
 
         try:
-            logger.info("Model loaded successfully.")
             return joblib.load(model_path)
         except Exception as e:
             logger.error(f"Error loading model/scaler: {e}")
             sys.exit(1)
+        finally:
+            logger.info("Model loaded successfully.")
 
-    def _predict_batch(self, batch_data: list):
-        df = pd.DataFrame(batch_data[0])
+    def _predict_batch(self, batch_df: pd.DataFrame):
+        # Dummy Code
+        if batch_df.empty:
+            return
+
         try:
+            src_ips = batch_df[IP_COLUMN_NAME].reset_index(drop=True)
+            features = batch_df.drop(columns=[IP_COLUMN_NAME])
+
             # Predict
-            predictions = self.model.predict(df)
+            predictions = self.model.predict(features)
+            results = pd.DataFrame({"ip": src_ips, "is_attack": predictions})
 
             # TODO: maybe switch to % alert
-            for i, pred in enumerate(predictions):
-                print(pred)
-                if pred == 1:  # Attack Detected
-                    # Try to find IP column with various possible names
-                    src_ip = None
-                    for col in ["src_ip", "Src IP", "Source IP"]:
-                        if col in df.columns:
-                            src_ip = df.iloc[i][col]
-                            break
+            # ip_stats = results.groupby("ip")["is_attack"].agg(["count", "mean"])
 
-                    if src_ip:
-                        logger.warning(f"[DETECTED] DDoS Flow from {src_ip}")
-                        self.mitigator.send_alert(src_ip, str(df.iloc[i].to_dict()))
-                        if self.config.mitigation.enable_blocking:
-                            self.mitigator.block_ip(src_ip)
+            logger.info(
+                f"\n--- BATCH PREDICTIONS ({len(results)} rows) ---\n"
+                + results.to_string(index=False)
+                # + "\n--- IP STATISTICS SUMMARY ---\n"
+                # + ip_stats.to_string()
+            )
+            # # ตั้งค่า Threshold (ควรดึงจาก Config)
+            # # เช่น 0.5 หมายถึง ถ้าเกิน 50% ของ traffic จาก IP นี้เป็น Attack -> Block
+            # ATTACK_THRESHOLD = 0.5
+            # MIN_PACKETS = 2 # กันเหนียว: ต้องส่งมาอย่างน้อย 2 packet ถึงจะตัดสิน (ลด noise)
+
+            # # Filter เอาเฉพาะคนที่เป็น Hacker (Mean > Threshold)
+            # attackers = ip_stats[
+            #     (ip_stats['mean'] > ATTACK_THRESHOLD) &
+            #     (ip_stats['count'] >= MIN_PACKETS)
+            # ]
+
+            # # 5. Mitigation Action
 
         except Exception as e:
             logger.exception(f"Batch prediction error: {e}")

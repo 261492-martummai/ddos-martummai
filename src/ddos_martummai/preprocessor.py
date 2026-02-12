@@ -1,13 +1,14 @@
 import logging
 from pathlib import Path
-from queue import Queue
+from queue import Empty, Queue
 from typing import Dict, Tuple
 
 import joblib
 import numpy as np
 import pandas as pd
 from sklearn.preprocessing import MinMaxScaler
-from ddos_martummai.util.constant import *
+from ddos_martummai.detector import IP_COLUMN_NAME
+from ddos_martummai.util.constant import COLUMN_RENAME_MAP
 
 logger = logging.getLogger("PREPROCESSOR")
 
@@ -21,7 +22,8 @@ def clean_column_names(df: pd.DataFrame) -> pd.DataFrame:
 
 def select_numeric_columns(df: pd.DataFrame, feature_cols: list) -> Tuple[pd.Series, pd.DataFrame]:
     """Select only numeric columns from dataframe."""
-    return df["src_ip"].copy(), df[feature_cols].copy()
+    src_ip_df = df[["src_ip"]].copy()
+    return src_ip_df, df[feature_cols].copy()
 
 def handle_missing_values(df: pd.DataFrame) -> pd.DataFrame:
     """Fill missing values with median."""
@@ -88,8 +90,8 @@ def scale_features(df: pd.DataFrame, scaler: MinMaxScaler) -> pd.DataFrame:
 def process_chunk(
     df: pd.DataFrame,
     scaler: MinMaxScaler,
-    chunk_size: int = 1000,
-) -> Tuple[pd.DataFrame, pd.DataFrame]:
+    batch_size: int,
+) -> pd.DataFrame:
     """
     Process a single chunk through the complete pipeline.
 
@@ -103,36 +105,34 @@ def process_chunk(
         Tuple of (processed_df, scaler)
     """
     rename_map = COLUMN_RENAME_MAP
-    processed_chunks = []
-    src_id_dfs = []
+    processed_batchs = []
     total_rows = 0
 
     try:
-        for i in range(0, len(df), chunk_size):
-            chunk = df.iloc[i:i + chunk_size]
+        for i in range(0, len(df), batch_size):
+            chunk = df.iloc[i:i + batch_size]
             df = clean_column_names(chunk)
             src_ip_df, df = select_numeric_columns(df, list(rename_map.keys()))
-            df = rename_columns(df, rename_map)
             df = convert_to_float32(df)
+            df = rename_columns(df, rename_map)
             df = handle_missing_values(df)
             df = handle_infinite_values(df)
             df = remove_duplicates(df)
             df = scale_features(df, scaler)
             
-            processed_chunks.append(df)
-            src_id_dfs.append(src_ip_df)
+            df.insert(0, 'src_ip', src_ip_df.reset_index(drop=True))
+            processed_batchs.append(df)
             
             total_rows += len(df)
-            logger.info(f"Processed {i + 1} chunks ({total_rows} rows)")
+            logger.info(f"Processed {i + 1} batches ({total_rows} rows)")
 
-        if processed_chunks:
-            df = pd.concat(processed_chunks, ignore_index=True)
-            src_id_df = pd.concat(src_id_dfs, ignore_index=True)
+        if processed_batchs:
+            df = pd.concat(processed_batchs, ignore_index=True)
             logger.info(f"Preprocessing complete. Total rows: {len(df)}")
-            return src_id_df, df
+            return  df
         else:
             logger.warning("No data processed")
-            return pd.DataFrame(), pd.DataFrame()
+            return pd.DataFrame()
     except Exception as e:
         logger.error(f"Error during preprocessing: {str(e)}")
         raise
@@ -141,7 +141,8 @@ def process_chunk(
 def preprocess_realtime_data(
     df: pd.DataFrame,
     scaler: MinMaxScaler,
-) -> Tuple[pd.DataFrame, pd.DataFrame]:
+    batch_size: int,
+) -> pd.DataFrame:
     """
     Preprocess real-time data for inference using pre-fitted scaler.
 
@@ -154,8 +155,8 @@ def preprocess_realtime_data(
     Returns:
         Processed dataframe ready for model inference
     """
-    src_id_df, processed_df = process_chunk(df, scaler)
-    return src_id_df, processed_df
+    processed_df = process_chunk(df, scaler, batch_size)
+    return processed_df
 
 
 def save_scaler(scaler: MinMaxScaler, output_path: str) -> None:
@@ -177,49 +178,62 @@ def load_scaler(scaler_path: str) -> MinMaxScaler:
 class DDoSPreprocessor:
     """Production-ready preprocessor for DDoS detection."""
 
-    def __init__(self, scaler_path: str, raw_packet_queue: Queue[dict | None]):
+    def __init__(self, scaler_path: str, batch_size: int, raw_packet_queue: Queue[dict | None]):
         self.scaler = load_scaler(scaler_path)
+        self.batch_size = batch_size
         self.raw_packet_queue: Queue[dict | None] = raw_packet_queue
-        self.cleaned_packet_queue: Queue[dict | None] = Queue()
+        self.cleaned_packet_queue: Queue[pd.DataFrame | None] = Queue()
 
-    def get_queue(self) -> Queue[dict | None]:
+    def get_queue(self) -> Queue[pd.DataFrame | None]:
         return self.cleaned_packet_queue
-
+        
     def start(self):
-        logger.info("Preprocessor Started...")
+        buffer = []
+
         while True:
-            batch = []
-            
-            # Collect up to 1000 packets from queue
-            while len(batch) < 1000:
-                if not self.raw_packet_queue.empty():
-                    packet = self.raw_packet_queue.get()
-                    batch.append(packet)
-                else:
-                    break
-            
-            # If no packets collected at all, stop
-            if not batch:
-                self.stop()
-                break
-            
-            df = pd.DataFrame(batch)
             try:
-                src_id_df, processed_df = self.transform(df)
-            except Exception:
-                self.stop()        
-                break
-                    
-            # concat src_id back to processed df
-            processed_df.insert(0, 'src_ip', src_id_df)
-            self.cleaned_packet_queue.put(processed_df.to_dict())
-    
+                packet = self.raw_packet_queue.get(timeout=0.1)
+
+                if packet is None:
+                    if buffer:
+                        self._flush_buffer(buffer)
+                    self.cleaned_packet_queue.put(None)
+                    self.stop()
+                    break
+
+                buffer.append(packet)
+
+                if len(buffer) >= self.batch_size:
+                    logger.info(f"Flushing due to batch size (Buffer: {len(buffer)})")
+                    self._flush_buffer(buffer)
+                    buffer = []
+                    continue
+
+            except Empty:
+                if buffer:
+                    logger.info(
+                        f"Flushing due to Empty Queue pipe (Buffer: {len(buffer)})"
+                    )
+                    self._flush_buffer(buffer)
+                    buffer = []
+
+    def _flush_buffer(self, buffer):
+        try:
+            df = pd.DataFrame(buffer)
+
+            processed_df = self.transform(df)
+            self.cleaned_packet_queue.put(processed_df)
+
+            logger.debug(f"Flushed batch of {len(buffer)} packets")
+        except Exception as e:
+            logger.error(f"Error flushing buffer: {e}")
+            
     def stop(self):
         logger.info("Preprocessor Stopping...")
         self.cleaned_packet_queue.put(None)
         logger.info("Preprocessor Stopped.")
-        
-    def transform(self, df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
+    
+    def transform(self, df: pd.DataFrame) -> pd.DataFrame:
         """
         Transform new data using fitted scaler (for inference).
 
@@ -229,8 +243,7 @@ class DDoSPreprocessor:
         Returns:
             Processed data ready for model
         """
-        logger.info("Inference mode: using fitted scaler")
-        return preprocess_realtime_data(df, self.scaler)
+        return preprocess_realtime_data(df, self.scaler, self.batch_size)
 
     def save_scaler(self, output_path: str) -> None:
         """Save the fitted scaler."""
