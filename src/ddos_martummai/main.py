@@ -1,24 +1,22 @@
-import sys
+import logging
+import threading
+import time
 from pathlib import Path
 
 import click
 
-# from ddos_martummai.preprocessor import DDoSPreprocessor
+from ddos_martummai.config_loader import DDoSConfigLoader
+from ddos_martummai.detector import DDoSDetector
+from ddos_martummai.preprocessor import DDoSPreprocessor
+from ddos_martummai.reader import Reader
 
-
-from .config_loader import (
-    load_config,
-)
-from .detector import DDoSDetector
-from .logger import setup_logger
-from .setup_wizard import run_setup_wizard
-# from .reader import Reader
+logger = logging.getLogger("MAIN")
 
 
 @click.command()
-@click.option("--config", "-c", default="config/config.yml", help="Path to config file")
+@click.option("--config-path", "-c", default=None, help="Path to config file")
 @click.option("--test-mode", "-t", is_flag=True, help="Enable test mode")
-@click.option("--file", "-f", help="Input file path (.pcap or .csv) for test mode")
+@click.option("--file-path", "-f", help="Input file path (.pcap or .csv) for test mode")
 @click.option(
     "--override-env",
     "-o",
@@ -26,67 +24,114 @@ from .setup_wizard import run_setup_wizard
     help="Override existing config form enironment variables",
 )
 @click.option("--verbose", "-v", is_flag=True, help="Enable debug logging")
-def main(config, test_mode, file, override_env, verbose):
+def main(config_path, test_mode, file_path, override_env, verbose):
     # 1. Load Config First
-    # We need the config to know WHERE to write the logs
-    app_config = load_config(config, override_env_vars=override_env)
+    loader = DDoSConfigLoader(config_path, override_env)
+    app_config = loader.app_config
 
-    # 2. Setup Logger
-    log_level = "DEBUG" if verbose else "INFO"
-    if app_config and app_config.system.log_file_path:
-        log_path = app_config.system.log_file_path
-        # Ensure directory exists (safe check)
-        try:
-            Path(log_path).parent.mkdir(parents=True, exist_ok=True)
-            setup_logger(log_path, level=log_level)
-            if verbose:
-                print(f"Logging initialized at: {log_path}")
-        except PermissionError:
-            print(f"[!] Permission Denied: Cannot write logs to {log_path}")
-            print("[!] Falling back to console output only.")
-            setup_logger(None, level=log_level)
-    else:
-        # Fallback if config failed completely
-        setup_logger(None, level=log_level)
+    logger.info("Starting DDoS Martummai Guard System...")
 
-    # 3. Validation & Wizard Trigger
-    if app_config is None:
-        if sys.stdin.isatty():
-            # Interactive Mode (User is running manually)
-            base_config_for_wizard = {}
+    # 4. Find model and scaler paths relative to this file
+    current_dir = Path(__file__).parent.resolve()
+    model_dir = current_dir / "models"
+    model_path = model_dir / "model.joblib"
+    scaler_path = model_dir / "scaler.joblib"
 
-            success = run_setup_wizard(config, base_config_for_wizard)
-            if not success:
-                sys.exit(1)
-            # Reload after setup
-            app_config = load_config(config, override_env_vars=override_env)
-
-        else:
-            # Service Mode (Headless)
-            print(f"[FATAL] Configuration invalid or missing at {config}")
-            print("Please run 'ddos-martummai' manually to setup configuration first.")
-            sys.exit(1)
-
-    # 4. Initialize
-    # reader = Reader()
-    # preprocessor = DDoSPreprocessor(scaler_path="models/scaler.joblib")
-    detector = DDoSDetector(app_config)
-
-    # 5. Run Mode Selection
+    mode = "csv"
     if test_mode:
-        if not file:
+        if not file_path:
             click.echo("Error: --file is required for test mode")
             return
 
-        if file.endswith(".pcap"):
-            detector.start_monitoring(mode="pcap", input_file=file)
-        elif file.endswith(".csv"):
-            detector.start_monitoring(mode="csv", input_file=file)
+        file_path = Path(file_path)
+        if not file_path.exists():
+            click.echo(f"Error: File not found at {file_path}")
+            return
+
+        if file_path.suffix == ".pcap":
+            mode = "pcap"
+        elif file_path.suffix == ".csv":
+            mode = "csv"
         else:
             click.echo("Error: Unsupported file format. Use .pcap or .csv")
+
+    logger.info(f"Initializing modules in mode: {mode}")
+
+    # 5. Initialize
+    reader = Reader(app_config, mode)
+    preprocessor = DDoSPreprocessor(
+        scaler_path,
+        app_config.model.batch_size,
+        reader.get_queue(),
+    )
+    detector = DDoSDetector(model_path, app_config, preprocessor.get_queue())
+
+    if mode == "live":
+        t_reader = threading.Thread(target=reader.start)
     else:
-        click.echo(f"Starting Live Monitoring on {app_config.system.interface}...")
-        detector.start_monitoring(mode="live")
+        t_reader = threading.Thread(target=reader.start, args=(file_path,))
+    t_prep = threading.Thread(target=preprocessor.start)
+    t_det = threading.Thread(target=detector.start)
+
+    logger.info("Starting worker threads...")
+    t_det.start()
+    t_prep.start()
+    t_reader.start()
+
+    try:
+        while True:
+            time.sleep(1)
+
+            reader_died = not t_reader.is_alive()
+            prep_died = not t_prep.is_alive()
+            det_died = not t_det.is_alive()
+
+            if mode == "live":
+                if reader_died or prep_died or det_died:
+                    logger.critical(
+                        "CRITICAL ERROR: A core service thread has died unexpectedly!"
+                    )
+                    if reader_died:
+                        logger.critical(" -> Reader Service: DEAD")
+                    if prep_died:
+                        logger.critical(" -> Preprocessor Service: DEAD")
+                    if det_died:
+                        logger.critical(" -> Detector Service: DEAD")
+
+                    raise RuntimeError("System integrity compromised.")
+
+            else:
+                if det_died:
+                    logger.info("File processing completed (Detector finished).")
+                    break
+
+                if prep_died and not reader_died:
+                    logger.warning("Preprocessor died prematurely!")
+
+    except (KeyboardInterrupt, RuntimeError) as e:
+        if isinstance(e, RuntimeError):
+            logger.error(f"Initiating EMERGENCY SHUTDOWN due to: {e}")
+        else:
+            logger.warning("Keyboard Interrupt detected. Stopping...")
+
+        logger.info("Stopping DDoS Guard Service...")
+        reader.stop()
+
+        if isinstance(e, RuntimeError):
+            try:
+                reader.get_queue().put(None)
+            except Exception as ex:
+                logger.error(f"Failed to inject poison pill: {ex}")
+
+        logger.info("Waiting for worker threads to finish")
+
+        t_reader.join()
+        t_prep.join()
+        t_det.join()
+
+        logger.info("--- All systems shutdown safely ---")
+        if isinstance(e, RuntimeError):
+            exit(1)
 
 
 if __name__ == "__main__":

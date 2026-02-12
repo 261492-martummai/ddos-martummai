@@ -1,96 +1,31 @@
-import pandas as pd
-import numpy as np
-from sklearn.preprocessing import MinMaxScaler
-from typing import List, Dict, Tuple
 import logging
 from pathlib import Path
+from queue import Empty, Queue
+from typing import Dict, Tuple
+
 import joblib
+import numpy as np
+import pandas as pd
+from sklearn.preprocessing import MinMaxScaler
+from ddos_martummai.util.constant import COLUMN_RENAME_MAP
 
-logger = logging.getLogger("ddos-martummai")
-
-# ============================================================================
-# CONSTANTS
-# ============================================================================
-
-FEATURE_COLUMNS = [
-    "Flow Duration",
-    "Tot Fwd Pkts",
-    "Tot Bwd Pkts",
-    "TotLen Fwd Pkts",
-    "TotLen Bwd Pkts",
-    "Fwd Pkt Len Std",
-    "Bwd Pkt Len Min",
-    "Bwd Pkt Len Std",
-    "Flow IAT Min",
-    "Fwd IAT Tot",
-    "Fwd IAT Min",
-    "Fwd PSH Flags",
-    "Fwd Header Len",
-    "Fwd Pkts/s",
-    "SYN Flag Cnt",
-    "ACK Flag Cnt",
-    "URG Flag Cnt",
-    "CWE Flag Count",
-    "Init Fwd Win Byts",
-    "Fwd Act Data Pkts",
-    "Fwd Seg Size Min",
-    "Active Mean",
-    "Idle Mean",
-]
-
-COLUMN_RENAME_MAP = {
-    "flow_duration": "Flow Duration",
-    "tot_fwd_pkts": "Total Fwd Packets",
-    "tot_bwd_pkts": "Total Backward Packets",
-    "totlen_fwd_pkts": "Total Length of Fwd Packets",
-    "totlen_bwd_pkts": "Total Length of Bwd Packets",
-    "fwd_pkt_len_std": "Fwd Packet Length Std",
-    "bwd_pkt_len_min": "Bwd Packet Length Min",
-    "bwd_pkt_len_std": "Bwd Packet Length Std",
-    "flow_iat_min": "Flow IAT Min",
-    "fwd_iat_tot": "Fwd IAT Total",
-    "fwd_iat_min": "Fwd IAT Min",
-    "fwd_psh_flags": "Fwd PSH Flags",
-    "fwd_header_len": "Fwd Header Length",
-    "fwd_pkts_s": "Fwd Packets/s",
-    "syn_flag_cnt": "SYN Flag Count",
-    "ack_flag_cnt": "ACK Flag Count",
-    "urg_flag_cnt": "URG Flag Count",
-    "cwr_flag_count": "CWE Flag Count",
-    "init_fwd_win_byts": "Init_Win_bytes_forward",
-    "fwd_act_data_pkts": "act_data_pkt_fwd",
-    "fwd_seg_size_min": "min_seg_size_forward",
-    "active_mean": "Active Mean",
-    "idle_mean": "Idle Mean",
-}
-
-
-# ============================================================================
-# PURE FUNCTIONS
-# ============================================================================
+logger = logging.getLogger("PREPROCESSOR")
 
 
 def clean_column_names(df: pd.DataFrame) -> pd.DataFrame:
-    """Strip whitespace from column names."""
+    """Strip whitespace from column names and normalize to lowercase with underscores."""
     df_clean = df.copy()
     df_clean.columns = df_clean.columns.str.strip()
+
     return df_clean
 
 
-def select_numeric_columns(df: pd.DataFrame) -> pd.DataFrame:
+def select_numeric_columns(
+    df: pd.DataFrame, feature_cols: list
+) -> Tuple[pd.DataFrame, pd.DataFrame]:
     """Select only numeric columns from dataframe."""
-    numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
-    return df[numeric_cols].copy()
-
-
-def select_feature_columns(df: pd.DataFrame, columns: List[str]) -> pd.DataFrame:
-    """Select specified feature columns."""
-    missing_cols = set(columns) - set(df.columns)
-    if missing_cols:
-        logger.warning(f"Missing columns: {missing_cols}")
-        available_cols = [col for col in columns if col in df.columns]
-        return df[available_cols].copy()
-    return df[columns].copy()
+    src_ip_df = df[["src_ip"]].copy()
+    return src_ip_df, df[feature_cols].copy()
 
 
 def handle_missing_values(df: pd.DataFrame) -> pd.DataFrame:
@@ -118,16 +53,6 @@ def handle_infinite_values(df: pd.DataFrame) -> pd.DataFrame:
     return df_clean
 
 
-def remove_duplicates(df: pd.DataFrame) -> pd.DataFrame:
-    """Remove duplicate rows."""
-    initial_rows = len(df)
-    df_clean = df.drop_duplicates().copy()
-    removed = initial_rows - len(df_clean)
-    if removed > 0:
-        logger.info(f"Removed {removed} duplicate rows")
-    return df_clean
-
-
 def rename_columns(df: pd.DataFrame, rename_map: Dict[str, str]) -> pd.DataFrame:
     """Rename columns according to mapping."""
     return df.rename(columns=rename_map)
@@ -138,9 +63,7 @@ def convert_to_float32(df: pd.DataFrame) -> pd.DataFrame:
     return df.astype(np.float32)
 
 
-def scale_features(
-    df: pd.DataFrame, scaler: MinMaxScaler = None
-) -> Tuple[pd.DataFrame, MinMaxScaler]:
+def scale_features(df: pd.DataFrame, scaler: MinMaxScaler) -> pd.DataFrame:
     """
     Scale features using MinMaxScaler.
 
@@ -149,34 +72,24 @@ def scale_features(
         scaler: Pre-fitted scaler (for inference). If None, fit new scaler.
 
     Returns:
-        Tuple of (scaled_df, scaler)
+        Scaled dataframe
     """
-    if scaler is None:
-        scaler = MinMaxScaler()
-        scaled_data = scaler.fit_transform(df)
-    else:
-        scaled_data = scaler.transform(df)
-
+    scaled_data = scaler.transform(df)
     scaled_df = pd.DataFrame(scaled_data, columns=df.columns, index=df.index)
-    return scaled_df, scaler
 
-
-# ============================================================================
-# PIPELINE FUNCTIONS
-# ============================================================================
+    return scaled_df
 
 
 def process_chunk(
-    chunk: pd.DataFrame,
-    feature_cols: List[str],
-    rename_map: Dict[str, str],
-    scaler: MinMaxScaler = None,
-) -> Tuple[pd.DataFrame, MinMaxScaler]:
+    df: pd.DataFrame,
+    scaler: MinMaxScaler,
+    batch_size: int,
+) -> pd.DataFrame:
     """
     Process a single chunk through the complete pipeline.
 
     Args:
-        chunk: Raw data chunk
+        df: Raw data dataframe
         feature_cols: List of feature columns to select
         rename_map: Dictionary for renaming columns
         scaler: Pre-fitted scaler (for inference). If None, fit new scaler.
@@ -184,62 +97,34 @@ def process_chunk(
     Returns:
         Tuple of (processed_df, scaler)
     """
-    df = clean_column_names(chunk)
-    df = select_numeric_columns(df)
-    df = select_feature_columns(df, feature_cols)
-    df = convert_to_float32(df)
-    df = handle_missing_values(df)
-    df = handle_infinite_values(df)
-    df = remove_duplicates(df)
-    df = rename_columns(df, rename_map)
-    df, scaler = scale_features(df, scaler)
-
-    return df, scaler
-
-
-def preprocess_csv_file(
-    file_path: str,
-    chunk_size: int = 1000,
-    feature_cols: List[str] = FEATURE_COLUMNS,
-    rename_map: Dict[str, str] = COLUMN_RENAME_MAP,
-    fit_scaler: bool = True,
-) -> Tuple[pd.DataFrame, MinMaxScaler]:
-    """
-    Preprocess CSV file in chunks for training.
-
-    Args:
-        file_path: Path to CSV file
-        chunk_size: Number of rows per chunk
-        feature_cols: List of feature columns
-        rename_map: Column rename mapping
-        fit_scaler: Whether to fit a new scaler (True for training, False for inference)
-
-    Returns:
-        Tuple of (processed_df, fitted_scaler)
-    """
-    logger.info(f"Starting preprocessing of {file_path}")
-
-    processed_chunks = []
-    scaler = None
+    rename_map = COLUMN_RENAME_MAP
+    processed_batchs = []
     total_rows = 0
 
     try:
-        for i, chunk in enumerate(pd.read_csv(file_path, chunksize=chunk_size)):
-            chunk_df, scaler = process_chunk(chunk, feature_cols, rename_map, scaler)
-            processed_chunks.append(chunk_df)
-            total_rows += len(chunk_df)
+        for i in range(0, len(df), batch_size):
+            chunk = df.iloc[i : i + batch_size]
+            df = clean_column_names(chunk)
+            src_ip_df, df = select_numeric_columns(df, list(rename_map.keys()))
+            df = convert_to_float32(df)
+            df = rename_columns(df, rename_map)
+            df = handle_missing_values(df)
+            df = handle_infinite_values(df)
+            df = scale_features(df, scaler)
 
-            if (i + 1) % 10 == 0:
-                logger.info(f"Processed {i + 1} chunks ({total_rows} rows)")
+            df.insert(0, "src_ip", src_ip_df.reset_index(drop=True)["src_ip"])
+            processed_batchs.append(df)
 
-        if processed_chunks:
-            df = pd.concat(processed_chunks, ignore_index=True)
+            total_rows += len(df)
+            logger.info(f"Processed {i + 1} batches ({total_rows} rows)")
+
+        if processed_batchs:
+            df = pd.concat(processed_batchs, ignore_index=True)
             logger.info(f"Preprocessing complete. Total rows: {len(df)}")
-            return df, scaler
+            return df
         else:
             logger.warning("No data processed")
-            return pd.DataFrame(), None
-
+            return pd.DataFrame()
     except Exception as e:
         logger.error(f"Error during preprocessing: {str(e)}")
         raise
@@ -248,8 +133,7 @@ def preprocess_csv_file(
 def preprocess_realtime_data(
     df: pd.DataFrame,
     scaler: MinMaxScaler,
-    feature_cols: List[str] = FEATURE_COLUMNS,
-    rename_map: Dict[str, str] = COLUMN_RENAME_MAP,
+    batch_size: int,
 ) -> pd.DataFrame:
     """
     Preprocess real-time data for inference using pre-fitted scaler.
@@ -263,13 +147,8 @@ def preprocess_realtime_data(
     Returns:
         Processed dataframe ready for model inference
     """
-    processed_df, _ = process_chunk(df, feature_cols, rename_map, scaler)
+    processed_df = process_chunk(df, scaler, batch_size)
     return processed_df
-
-
-# ============================================================================
-# PRODUCTION UTILITIES
-# ============================================================================
 
 
 def save_scaler(scaler: MinMaxScaler, output_path: str) -> None:
@@ -288,74 +167,65 @@ def load_scaler(scaler_path: str) -> MinMaxScaler:
     return scaler
 
 
-def validate_data_quality(
-    df: pd.DataFrame, max_missing_ratio: float = 0.5, max_duplicate_ratio: float = 0.3
-):
-    """
-    Validate data quality metrics.
-
-    Args:
-        df: Input dataframe
-        max_missing_ratio: Maximum allowed ratio of missing values
-        max_duplicate_ratio: Maximum allowed ratio of duplicates
-
-    Returns:
-        Dictionary of validation results
-    """
-    total_cells = df.shape[0] * df.shape[1]
-    missing_ratio = df.isnull().sum().sum() / total_cells if total_cells > 0 else 0
-    duplicate_ratio = df.duplicated().sum() / len(df) if len(df) > 0 else 0
-
-    validation_results = {
-        "has_data": len(df) > 0,
-        "missing_ratio_ok": missing_ratio <= max_missing_ratio,
-        "duplicate_ratio_ok": duplicate_ratio <= max_duplicate_ratio,
-        "no_inf_values": not np.isinf(
-            df.select_dtypes(include=[np.number]).values
-        ).any(),
-        "missing_ratio": missing_ratio,
-        "duplicate_ratio": duplicate_ratio,
-    }
-
-    logger.info(f"Data quality: {validation_results}")
-    return validation_results
-
-
-# ============================================================================
-# PRODUCTION EXAMPLE USAGE
-# ============================================================================
-
-
 class DDoSPreprocessor:
     """Production-ready preprocessor for DDoS detection."""
 
-    def __init__(self, scaler_path: str):
-        """
-        Initialize preprocessor.
+    def __init__(
+        self, scaler_path: str, batch_size: int, raw_packet_queue: Queue[dict | None]
+    ):
+        self.scaler = load_scaler(scaler_path)
+        self.batch_size = batch_size
+        self.raw_packet_queue: Queue[dict | None] = raw_packet_queue
+        self.cleaned_packet_queue: Queue[pd.DataFrame | None] = Queue()
 
-        Args:
-            scaler_path: Path to saved scaler (for inference mode)
-        """
-        self.scaler = load_scaler(scaler_path) if scaler_path else None
-        self.feature_cols = FEATURE_COLUMNS
-        self.rename_map = COLUMN_RENAME_MAP
+    def get_queue(self) -> Queue[pd.DataFrame | None]:
+        return self.cleaned_packet_queue
 
-    def fit_transform(self, file_path: str, chunk_size: int = 1000) -> pd.DataFrame:
-        """
-        Fit scaler and transform training data.
+    def start(self):
+        buffer = []
 
-        Args:
-            file_path: Path to training CSV
-            chunk_size: Chunk size for processing
+        while True:
+            try:
+                packet = self.raw_packet_queue.get(timeout=0.1)
 
-        Returns:
-            Processed training data
-        """
-        logger.info("Training mode: fitting scaler")
-        df, self.scaler = preprocess_csv_file(
-            file_path, chunk_size, self.feature_cols, self.rename_map, fit_scaler=True
-        )
-        return df
+                if packet is None:
+                    if buffer:
+                        self._flush_buffer(buffer)
+                    self.cleaned_packet_queue.put(None)
+                    self.stop()
+                    break
+
+                buffer.append(packet)
+
+                if len(buffer) >= self.batch_size:
+                    logger.info(f"Flushing due to batch size (Buffer: {len(buffer)})")
+                    self._flush_buffer(buffer)
+                    buffer = []
+                    continue
+
+            except Empty:
+                if buffer:
+                    logger.info(
+                        f"Flushing due to Empty Queue pipe (Buffer: {len(buffer)})"
+                    )
+                    self._flush_buffer(buffer)
+                    buffer = []
+
+    def _flush_buffer(self, buffer):
+        try:
+            df = pd.DataFrame(buffer)
+
+            processed_df = self.transform(df)
+            self.cleaned_packet_queue.put(processed_df)
+
+            logger.debug(f"Flushed batch of {len(buffer)} packets")
+        except Exception as e:
+            logger.error(f"Error flushing buffer: {e}")
+
+    def stop(self):
+        logger.info("Preprocessor Stopping...")
+        self.cleaned_packet_queue.put(None)
+        logger.info("Preprocessor Stopped.")
 
     def transform(self, df: pd.DataFrame) -> pd.DataFrame:
         """
@@ -367,77 +237,10 @@ class DDoSPreprocessor:
         Returns:
             Processed data ready for model
         """
-        if self.scaler is None:
-            raise ValueError(
-                "Scaler not fitted. Call fit_transform first or load scaler."
-            )
-
-        logger.info("Inference mode: using fitted scaler")
-        return preprocess_realtime_data(
-            df, self.scaler, self.feature_cols, self.rename_map
-        )
+        return preprocess_realtime_data(df, self.scaler, self.batch_size)
 
     def save_scaler(self, output_path: str) -> None:
         """Save the fitted scaler."""
         if self.scaler is None:
             raise ValueError("No scaler to save. Fit the preprocessor first.")
         save_scaler(self.scaler, output_path)
-
-    def validate_input(self, df: pd.DataFrame) -> bool:
-        """Validate input data quality."""
-        results = validate_data_quality(df)
-        return all(
-            [
-                results["has_data"],
-                results["missing_ratio_ok"],
-                results["duplicate_ratio_ok"],
-                results["no_inf_values"],
-            ]
-        )
-
-
-# ============================================================================
-# EXAMPLE USAGE
-# ============================================================================
-
-if __name__ == "__main__":
-    # Training phase
-    # print("=" * 80)
-    # print("TRAINING PHASE")
-    # print("=" * 80)
-
-    # preprocessor = DDoSPreprocessor()
-
-    # # Process training data
-    # train_data = preprocessor.fit_transform(
-    #     file_path='../../cic_output/2026-01-25_Flow.csv',
-    #     chunk_size=1000
-    # )
-
-    # print(f"Processed training data shape: {train_data.shape}")
-    # print(f"Columns: {list(train_data.columns)}")
-
-    # # Save scaler for production use
-    # preprocessor.save_scaler('models/scaler.joblib')
-
-    # Save processed data
-    # train_data.to_csv('processed_data/train_processed.csv', index=False)
-    # print(f"Saved processed training data")
-
-    print("\n" + "=" * 80)
-    print("INFERENCE PHASE (Simulated)")
-    print("=" * 80)
-
-    # Load preprocessor with saved scaler for inference
-    inference_preprocessor = DDoSPreprocessor(scaler_path="models/scaler.joblib")
-
-    # Simulate real-time data (take first 100 rows as example)
-    realtime_data = pd.read_csv("../../cic_output/2026-01-25_Flow.csv", nrows=100)
-
-    # Validate and preprocess
-    if inference_preprocessor.validate_input(realtime_data):
-        processed_realtime = inference_preprocessor.transform(realtime_data)
-        print(f"Processed real-time data shape: {processed_realtime.shape}")
-        # Now ready for model.predict(processed_realtime)
-    else:
-        print("Data quality validation failed!")

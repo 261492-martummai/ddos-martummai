@@ -1,161 +1,170 @@
-import logging
 import os
 import shutil
-from dataclasses import dataclass, field
+import sys
+from dataclasses import fields
 from pathlib import Path
 from typing import Optional
+
 import yaml
 
-logger = logging.getLogger("ddos-martummai")
+from ddos_martummai.init_models import (
+    AppConfig,
+    MitigationConfig,
+    ModelConfig,
+    SystemConfig,
+)
+from ddos_martummai.logger import attach_file_logging, get_console_logger
+from ddos_martummai.setup_wizard import SetupWizard
+
+logger = get_console_logger()
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
-DEFAULT_CONFIG_PATH = BASE_DIR / "config/config.yml"
-TEMPLATE_CONFIG_PATH = BASE_DIR / "config/config.example.yml"
-
-# =========================
-# Dataclasses with defaults
-# =========================
+CONFIG_DIR = BASE_DIR / "config"
+DEFAULT_CONFIG_PATH = CONFIG_DIR / "config.yml"
+TEMPLATE_CONFIG_PATH = CONFIG_DIR / "config.example.yml"
 
 
-@dataclass
-class SystemConfig:
-    interface: str = ""
-    csv_output_path: str = ""
-    test_mode_output_path: str = ""
-    log_file_path: str = ""
+class DDoSConfigLoader:
+    def __init__(self, config_path: Optional[str] = None, override_env: bool = False):
+        self.config_file = Path(config_path) if config_path else DEFAULT_CONFIG_PATH
+        self.override_env = override_env
+        self.app_config: AppConfig = AppConfig()
 
+        logger.info("Load Configuration")
 
-@dataclass
-class ModelConfig:
-    batch_size: int = 1000
+        self._ensure_config_file_exists()
+        self._load_app_config()
+        self._inject_system_paths()
+        self._check_override_env()
+        self._validate_config()
+        self._setup_logger()
 
+        logger.info("Configuration Loaded Successfully")
 
-@dataclass
-class MitigationConfig:
-    enable_blocking: bool = False
-    block_duration_seconds: int = 180
-    admin_email: str = ""
-    smtp_server: str = ""
-    smtp_port: int = 587
-    smtp_user: str = ""
-    smtp_password: str = ""
+    def _ensure_config_file_exists(self):
+        if self.config_file.exists():
+            return
 
+        logger.warning(f"Config not found: {self.config_file}")
 
-@dataclass
-class AppConfig:
-    system: SystemConfig = field(default_factory=SystemConfig)
-    model: ModelConfig = field(default_factory=ModelConfig)
-    mitigation: MitigationConfig = field(default_factory=MitigationConfig)
+        self.config_file.parent.mkdir(parents=True, exist_ok=True)
 
+        if TEMPLATE_CONFIG_PATH.exists():
+            logger.info("Copying from template...")
+            shutil.copy(TEMPLATE_CONFIG_PATH, self.config_file)
+        else:
+            logger.info("Creating from internal defaults...")
+            with open(self.config_file, "w") as f:
+                yaml.dump(AppConfig(), f)
 
-# =========================
-# Helpers
-# =========================
+    def _load_app_config(self):
+        with open(self.config_file) as f:
+            raw = yaml.safe_load(f) or {}
 
+        self.app_config = AppConfig(
+            system=SystemConfig(**raw.get("system", {})),
+            model=ModelConfig(**raw.get("model", {})),
+            mitigation=MitigationConfig(**raw.get("mitigation", {})),
+        )
 
-def ensure_file_exists(config_file: Path):
-    if config_file.exists():
-        return
+    def _inject_system_paths(self):
+        output_dir = BASE_DIR / "cic_output"
+        log_dir = BASE_DIR / "logs"
+        output_dir.mkdir(exist_ok=True)
+        log_dir.mkdir(exist_ok=True)
 
-    logger.warning(f"Config not found: {config_file}")
+        if not self.app_config.system.csv_output_path:
+            self.app_config.system.csv_output_path = str(output_dir / "flow_logs.csv")
 
-    config_file.parent.mkdir(parents=True, exist_ok=True)
+        if not self.app_config.system.test_mode_output_path:
+            self.app_config.system.test_mode_output_path = str(
+                output_dir / "test_results.csv"
+            )
 
-    if TEMPLATE_CONFIG_PATH.exists():
-        logger.info("Copying from template...")
-        shutil.copy(TEMPLATE_CONFIG_PATH, config_file)
-    else:
-        logger.info("Creating from internal defaults...")
-        with open(config_file, "w") as f:
-            yaml.dump(AppConfig(), f)
+        if not self.app_config.system.log_file_path:
+            self.app_config.system.log_file_path = str(log_dir / "service.log")
 
+    def _check_override_env(self):
+        if not self.override_env:
+            return
 
-def inject_paths(system: SystemConfig) -> SystemConfig:
-    output_dir = BASE_DIR / "cic_output"
-    log_dir = BASE_DIR / "logs"
-    output_dir.mkdir(exist_ok=True)
-    log_dir.mkdir(exist_ok=True)
+        target_configs = [
+            self.app_config.system,
+            self.app_config.model,
+            self.app_config.mitigation,
+        ]
 
-    if not system.csv_output_path:
-        system.csv_output_path = str(output_dir / "flow_logs.csv")
+        prefix = "DDOS_MARTUMMAI_"
 
-    if not system.test_mode_output_path:
-        system.test_mode_output_path = str(output_dir / "test_results.csv")
+        for config in target_configs:
+            for env_field in fields(config):
+                env_key = f"{prefix}{env_field.name.upper()}"
+                env_value = os.getenv(env_key)
 
-    if not system.log_file_path:
-        system.log_file_path = str(log_dir / "service.log")
+                if env_value is not None:
+                    try:
+                        if env_field.type is int:
+                            val = int(env_value)
+                        elif env_field.type is bool:
+                            val = env_value.lower() in ("true", "1")
+                        else:
+                            val = env_value
 
-    return system
+                        setattr(config, env_field.name, val)
 
+                    except ValueError:
+                        logger.error(
+                            f"Warning: Invalid value for {env_key}, expected {env_field.type}"
+                        )
 
-def override_from_env(config: AppConfig) -> AppConfig:
-    s = config.system
-    m = config.model
-    mit = config.mitigation
+    def _validate_config(self):
+        errors = []
+        cfg = self.app_config
 
-    s.interface = os.getenv("DDOS_MARTUMMAI_INTERFACE", s.interface)
+        # 1. System Config Validation
+        if not cfg.system.interface:
+            errors.append("System Interface is required")
 
-    m.batch_size = int(os.getenv("DDOS_MARTUMMAI_BATCH_SIZE", m.batch_size))
+        # 2. Mitigation Config Validation
+        mit = cfg.mitigation
+        if not mit.admin_email:
+            errors.append("Admin Email is required")
 
-    mit.smtp_server = os.getenv("DDOS_MARTUMMAI_SMTP_SERVER", mit.smtp_server)
-    mit.smtp_port = int(os.getenv("DDOS_MARTUMMAI_SMTP_PORT", mit.smtp_port))
-    mit.smtp_user = os.getenv("DDOS_MARTUMMAI_SMTP_USER", mit.smtp_user)
-    mit.smtp_password = os.getenv("DDOS_MARTUMMAI_SMTP_PASSWORD", mit.smtp_password)
-    mit.admin_email = os.getenv("DDOS_MARTUMMAI_ADMIN_EMAIL", mit.admin_email)
+        if mit.admin_email:
+            if not mit.smtp_user:
+                errors.append("SMTP User is required")
+            if not mit.smtp_password:
+                errors.append("SMTP Password is required")
 
-    env_blocking = os.getenv("DDOS_MARTUMMAI_ENABLE_BLOCKING")
-    if env_blocking is not None:
-        mit.enable_blocking = env_blocking.lower() == "true"
+        for error in errors:
+            logger.warning(f"Config Validator: {error}")
 
-    mit.block_duration_seconds = int(
-        os.getenv("DDOS_MARTUMMAI_BLOCK_DURATION_SECONDS", mit.block_duration_seconds)
-    )
+        if errors:
+            # Interactive Mode (User is running manually on Terminal)
+            if sys.stdin.isatty():
+                print("\n[!] Configuration incomplete.")
+                wizard = SetupWizard(self.config_file, self.app_config)
+                success = wizard.run()
 
-    return config
+                if not success:
+                    print("Setup cancelled.")
+                    sys.exit(1)
 
+                print("[*] Configuration updated. Resuming startup...\n")
+                return
 
-def validate_config(config: AppConfig):
-    errors = []
+            else:
+                # Service Mode (Headless / Background Process)
+                logger.critical(f"[FATAL] Configuration invalid at {self.config_file}")
+                logger.critical(f"Missing fields: {', '.join(errors)}")
+                logger.critical(
+                    "Please run 'ddos-martummai' manually to setup configuration first."
+                )
+                sys.exit(1)
 
-    if not config.system.interface:
-        errors.append("system.interface is required")
-
-    if config.mitigation.enable_blocking:
-        if not config.mitigation.smtp_user:
-            errors.append("smtp_user required when blocking enabled")
-        if not config.mitigation.admin_email:
-            errors.append("admin_email required when blocking enabled")
-
-    if errors:
-        raise ValueError("Invalid config:\n" + "\n".join(errors))
-
-
-# =========================
-# Main loader
-# =========================
-
-
-def load_config(
-    path: Optional[str] = None,
-    override_env_vars: bool = False,
-) -> AppConfig:
-    config_file = Path(path) if path else DEFAULT_CONFIG_PATH
-
-    ensure_file_exists(config_file)
-
-    with open(config_file) as f:
-        raw = yaml.safe_load(f) or {}
-
-    config = AppConfig(
-        system=SystemConfig(**raw.get("system", {})),
-        model=ModelConfig(**raw.get("model", {})),
-        mitigation=MitigationConfig(**raw.get("mitigation", {})),
-    )
-
-    config.system = inject_paths(config.system)
-
-    if override_env_vars:
-        config = override_from_env(config)
-
-    validate_config(config)
-    return config
+    def _setup_logger(self):
+        log_path = self.app_config.system.log_file_path
+        if log_path:
+            attach_file_logging(log_path)
+        else:
+            logger.warning("No log file path configured. Logging to console only.")
