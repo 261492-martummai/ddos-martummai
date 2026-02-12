@@ -101,7 +101,7 @@ class Reader:
                 yield line
 
         with open(csv_path, "r") as f:
-            features = []
+            features: list[str] = []
             logger.info("Waiting for CSV header features...")
 
             while not features:
@@ -126,7 +126,7 @@ class Reader:
                     logger.exception("Error processing line")
                     logger.debug(f"Exception: {e}")
 
-    def _run_cicflowmeter_pcap(self, pcap_path: Path):
+    def _run_cicflowmeter_pcap(self, pcap_path: Optional[Path]):
         logger.info(f"Processing PCAP file: {pcap_path}")
         output_dir = Path(self.config.system.test_mode_output_path).parent
         if output_dir:
@@ -146,8 +146,8 @@ class Reader:
         except subprocess.CalledProcessError as e:
             logger.error(f"CICFlowMeter in PCAP failed: {e}")
 
-    def _read_csv_direct(self, csv_path: Path):
-        if not csv_path.exists():
+    def _read_csv_direct(self, csv_path: Optional[Path]):
+        if not csv_path or not csv_path.exists():
             logger.error(f"CSV file not found at {csv_path}")
             return
 
