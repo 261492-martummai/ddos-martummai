@@ -1,4 +1,5 @@
 import logging
+import sys
 import threading
 import time
 from pathlib import Path
@@ -7,29 +8,45 @@ import click
 
 from ddos_martummai.config_loader import DDoSConfigLoader
 from ddos_martummai.detector import DDoSDetector
+from ddos_martummai.init_models import AppConfig
+from ddos_martummai.logger import get_console_logger
 from ddos_martummai.preprocessor import DDoSPreprocessor
 from ddos_martummai.reader import Reader
+from ddos_martummai.setup_wizard import SetupWizard
+from ddos_martummai.util.path_helper import get_app_paths
 
-logger = logging.getLogger("MAIN")
+APP_PATHS = get_app_paths()
 
 
 @click.command()
-@click.option("--config-path", "-c", default=None, help="Path to config file")
+@click.option("--config-file", "-c", default=None, help="Path to config file")
 @click.option("--test-mode", "-t", is_flag=True, help="Enable test mode")
 @click.option("--file-path", "-f", help="Input file path (.pcap or .csv) for test mode")
 @click.option(
     "--override-env",
     "-o",
     is_flag=True,
-    help="Override existing config form enironment variables",
+    help="Override existing config from environment variables",
 )
+@click.option("--setup-only", is_flag=True, help="Run setup wizard and exit")
 @click.option("--verbose", "-v", is_flag=True, help="Enable debug logging")
-def main(config_path, test_mode, file_path, override_env, verbose):
-    # 1. Load Config First
-    loader = DDoSConfigLoader(config_path, override_env)
-    app_config = loader.app_config
+def main(config_file, test_mode, file_path, override_env, setup_only, verbose):
+    if setup_only:
+        wizard = SetupWizard(config_file, AppConfig())
+        success = wizard.run()
+        if success:
+            sys.exit(0)
+        else:
+            sys.exit(1)
 
+    logger = get_console_logger(logging.DEBUG if verbose else logging.INFO)
+    logger.name = "MAIN"
     logger.info("Starting DDoS Martummai Guard System...")
+    config_file = Path(config_file) if config_file else APP_PATHS["config_file"]
+
+    # 1. Load Config First
+    loader = DDoSConfigLoader(config_file, override_env)
+    app_config = loader.app_config
 
     # 4. Find model and scaler paths relative to this file
     current_dir = Path(__file__).parent.resolve()
@@ -37,7 +54,7 @@ def main(config_path, test_mode, file_path, override_env, verbose):
     model_path = model_dir / "model.joblib"
     scaler_path = model_dir / "scaler.joblib"
 
-    mode = "csv"
+    mode = "live"
     if test_mode:
         if not file_path:
             click.echo("Error: --file is required for test mode")
@@ -54,6 +71,7 @@ def main(config_path, test_mode, file_path, override_env, verbose):
             mode = "csv"
         else:
             click.echo("Error: Unsupported file format. Use .pcap or .csv")
+            return
 
     logger.info(f"Initializing modules in mode: {mode}")
 

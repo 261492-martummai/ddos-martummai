@@ -7,6 +7,7 @@ import joblib
 import numpy as np
 import pandas as pd
 from sklearn.preprocessing import MinMaxScaler
+
 from ddos_martummai.util.constant import COLUMN_RENAME_MAP
 
 logger = logging.getLogger("PREPROCESSOR")
@@ -182,6 +183,7 @@ class DDoSPreprocessor:
         return self.cleaned_packet_queue
 
     def start(self):
+        logger.info("Preprocessor Start")
         buffer = []
 
         while True:

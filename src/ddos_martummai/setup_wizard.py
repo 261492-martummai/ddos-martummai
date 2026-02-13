@@ -39,54 +39,91 @@ class SetupWizard:
             return []
 
     def run(self) -> bool:
-        console.print(
-            Panel.fit(
-                "Welcome to DDoS Martummai Guard System Setup", style="bold green"
+        try:
+            console.print(
+                Panel.fit(
+                    "Welcome to DDoS Martummai Guard System Setup", style="bold green"
+                )
             )
-        )
-        console.print("Configuration is missing or incomplete. Let's set it up.\n")
+            console.print("Configuration is REQUIRED to proceed.\n")
 
-        # 1. Setup Network Interface
-        if not self._setup_interface():
+            # 1. Setup Network Interface
+            self._setup_interface()
+
+            # 2. Setup Email (Mitigation)
+            self._setup_email()
+
+            # 3. Setup Blocking (Mitigation)
+            self._setup_blocking()
+
+            # 4. Save Config
+            return self._save_config()
+        except KeyboardInterrupt:
+            console.print("\n[red]Setup cancelled by user.[/red]")
             return False
 
-        # 2. Setup Email (Mitigation)
-        self._setup_email()
+    def _setup_interface(self):
+        while True:
+            interfaces = self._get_network_interfaces()
+            selected = None
 
-        # 3. Setup Blocking (Mitigation)
-        self._setup_blocking()
+            if not interfaces:
+                console.print(
+                    "[bold red]Error: No network interfaces detected![/bold red]"
+                )
+                selected = questionary.text(
+                    "Enter Network Interface manually (e.g., eth0):",
+                    validate=lambda text: True
+                    if len(text.strip()) > 0
+                    else "Interface name cannot be empty!",
+                ).ask()
+            else:
+                selected = questionary.select(
+                    "Select the Network Interface to monitor (Required):",
+                    choices=interfaces,
+                ).ask()
 
-        # 4. Save Config
-        return self._save_config()
-
-    def _setup_interface(self) -> bool:
-        interfaces = self._get_network_interfaces()
-
-        if not interfaces:
-            console.print("[bold red]Error: No network interfaces found![/bold red]")
-            selected = questionary.text(
-                "Enter Network Interface manually (e.g., eth0):"
-            ).ask()
-        else:
-            selected = questionary.select(
-                "Select the Network Interface to monitor:", choices=interfaces
-            ).ask()
-
-        if selected:
-            self.app_config.system.interface = selected
-            return True
-        return False
+            if selected:
+                self.app_config.system.interface = selected
+                console.print(f"[green]Selected Interface: {selected}[/green]")
+                break
+            else:
+                console.print(
+                    "[bold red](!) Interface is required to run the detector.[/bold red]"
+                )
 
     def _setup_email(self):
+        def validate_non_empty(text):
+            if len(text.strip()) > 0:
+                return True
+            return "This field is required!"
+
         if questionary.confirm("Do you want to enable Email Alerts?").ask():
             mit = self.app_config.mitigation
-            mit.admin_email = questionary.text("Admin Email (Receiver):").ask()
-            mit.smtp_user = questionary.text("SMTP User (Sender Email):").ask()
-            mit.smtp_password = questionary.password("SMTP Password:").ask()
-            mit.smtp_server = questionary.text(
-                "SMTP Server:", default="smtp.gmail.com"
+            console.print(
+                "[cyan]Please provide SMTP details (All fields required):[/cyan]"
+            )
+            mit.admin_email = questionary.text(
+                "Admin Email (Receiver):", validate=validate_non_empty
             ).ask()
-            mit.smtp_port = int(questionary.text("SMTP Port:", default="587").ask())
+            mit.smtp_user = questionary.text(
+                "SMTP User (Sender Email):", validate=validate_non_empty
+            ).ask()
+            mit.smtp_password = questionary.password(
+                "SMTP Password:", validate=validate_non_empty
+            ).ask()
+            mit.smtp_server = questionary.text(
+                "SMTP Server:", default="smtp.gmail.com", validate=validate_non_empty
+            ).ask()
+            mit.smtp_port = int(
+                questionary.text(
+                    "SMTP Port:",
+                    default="587",
+                    validate=lambda text: True
+                    if text.isdigit()
+                    else "Port must be a number",
+                ).ask()
+            )
 
     def _setup_blocking(self):
         if questionary.confirm(
@@ -113,6 +150,11 @@ class SetupWizard:
                 f"\n[bold green]Configuration saved to: {self.config_path}[/bold green]"
             )
             return True
+        except PermissionError:
+            console.print("\n[bold red]Permission Denied![/bold red]")
+            console.print(f"Cannot write to [yellow]{self.config_path}[/yellow]")
+            console.print("Please run with [bold]sudo[/bold].")
+            return False
         except Exception as e:
-            console.print(f"[bold red]Failed to save config: {e}[/bold red]")
+            console.print(f"\n[bold red]Failed to save config: {e}[/bold red]")
             return False
