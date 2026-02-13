@@ -1,26 +1,46 @@
 #!/bin/bash
+set -e
 
-mkdir -p /var/log/ddos-martummai
-mkdir -p /var/lib/ddos-martummai
-mkdir -p /etc/ddos-martummai
+APP_NAME="ddos-martummai"
+APP_DIR="/opt/$APP_NAME"
+CONFIG_DIR="/etc/$APP_NAME"
+LOG_DIR="/var/log/$APP_NAME"
+DATA_DIR="/var/lib/$APP_NAME"
 
-chmod 750 /etc/ddos-martummai
-chmod 750 /var/log/ddos-martummai
-chmod 750 /var/lib/ddos-martummai
+echo "[*] Setting up directories..."
+mkdir -p "$CONFIG_DIR"
+mkdir -p "$LOG_DIR"
+mkdir -p "$DATA_DIR"
 
-cd /opt/ddos-martummai
+chown -R root:root "$CONFIG_DIR" "$LOG_DIR" "$DATA_DIR" "$APP_DIR"
+chmod 750 "$CONFIG_DIR"
+chmod 750 "$LOG_DIR"
+chmod 750 "$DATA_DIR"
 
 if ! command -v uv &> /dev/null; then
-    echo "Installing uv..."
+    echo "[*] Installing uv package manager..."
+    # สคริปต์ install.sh ของ uv จะเลือก path เองอัตโนมัติ
     curl -LsSf https://astral.sh/uv/install.sh | sh
+else
+    echo "[*] uv is already installed."
 fi
 
 export PATH="/root/.local/bin:/root/.cargo/bin:$PATH"
 
-echo "Load DDoS MarTumMai Dependencies..."
-/root/.cargo/bin/uv sync --frozen
+echo "[*] Load DDoS MarTumMai Dependencies..."
+if [ -d "$APP_DIR" ]; then
+    cd "$APP_DIR" || exit 1
+    uv sync --frozen
+else
+    echo "Error: Application directory $APP_DIR not found!"
+    exit 1
+fi
 
-systemctl daemon-reload
+if command -v systemctl >/dev/null 2>&1; then
+    echo "[*] Reloading systemd..."
+    systemctl daemon-reload
+    systemctl reset-failed "$APP_NAME" 2>/dev/null || true
+fi
 
 echo "========================================================"
 echo "  DDoS MarTumMai Installed Successfully!"
@@ -29,5 +49,13 @@ echo "PLEASE RUN THE SETUP WIZARD FIRST:"
 echo "   sudo martummai-setup"
 echo ""
 echo "Then start the service:"
-echo "   sudo systemctl start ddos-martummai"
+echo "   sudo systemctl start $APP_NAME"
+echo ""
+echo "If you want to enable it to start on boot:"
+echo "   sudo systemctl enable $APP_NAME"
+echo ""
+echo "Check status:"
+echo "   sudo systemctl status $APP_NAME"
 echo "========================================================"
+
+exit 0

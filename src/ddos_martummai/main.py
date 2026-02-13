@@ -31,6 +31,8 @@ APP_PATHS = get_app_paths()
 @click.option("--setup-only", is_flag=True, help="Run setup wizard and exit")
 @click.option("--verbose", "-v", is_flag=True, help="Enable debug logging")
 def main(config_file, test_mode, file_path, override_env, setup_only, verbose):
+    config_file = Path(config_file) if config_file else APP_PATHS["config_file"]
+
     if setup_only:
         wizard = SetupWizard(config_file, AppConfig())
         success = wizard.run()
@@ -42,7 +44,6 @@ def main(config_file, test_mode, file_path, override_env, setup_only, verbose):
     logger = get_console_logger(logging.DEBUG if verbose else logging.INFO)
     logger.name = "MAIN"
     logger.info("Starting DDoS Martummai Guard System...")
-    config_file = Path(config_file) if config_file else APP_PATHS["config_file"]
 
     # 1. Load Config First
     loader = DDoSConfigLoader(config_file, override_env)

@@ -1,6 +1,7 @@
 import logging
 import os
 from logging.handlers import TimedRotatingFileHandler, WatchedFileHandler
+from typing import Union
 
 from rich.logging import RichHandler
 
@@ -64,25 +65,28 @@ def attach_file_logging(log_file_path: str):
 
         is_prod_log = log_file_path.startswith("/var/log")
 
+        file_handler: Union[WatchedFileHandler, TimedRotatingFileHandler]
+
         if is_prod_log:
             file_handler = WatchedFileHandler(filename=log_file_path, encoding="utf-8")
         else:
-            file_handler = TimedRotatingFileHandler(
+            rotating_handler = TimedRotatingFileHandler(
                 filename=log_file_path,
                 when="midnight",
                 interval=1,
                 backupCount=30,
                 encoding="utf-8",
             )
+            rotating_handler.suffix = "%Y-%m-%d"
+            file_handler = rotating_handler
 
         file_formatter = logging.Formatter(
             "%(asctime)s - %(levelname)s - [%(filename)s:%(lineno)d] - %(message)s",
             datefmt="%Y-%m-%d %H:%M:%S",
         )
         file_handler.setFormatter(file_formatter)
-        file_handler.suffix = "%Y-%m-%d"
 
-        logger.addHandler(file_handler)
+        logging.getLogger().addHandler(file_handler)
 
         logger.info(f"File logging enabled at: {log_file_path}")
 
