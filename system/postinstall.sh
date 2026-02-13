@@ -13,8 +13,9 @@ cd /opt/ddos-martummai
 if ! command -v uv &> /dev/null; then
     echo "Installing uv..."
     curl -LsSf https://astral.sh/uv/install.sh | sh
-    export PATH="$HOME/.cargo/bin:$PATH"
 fi
+
+export PATH="/root/.local/bin:/root/.cargo/bin:$PATH"
 
 echo "Load DDoS MarTumMai Dependencies..."
 /root/.cargo/bin/uv sync --frozen

@@ -10,8 +10,8 @@ vendor: "CPE CMU"
 license: "MIT"
 
 contents:
-  - src: ./src/ddos-martummai/
-    dst: /opt/ddos-martummai/src/ddos-martummai/
+  - src: ./src/ddos_martummai/
+    dst: /opt/ddos-martummai/src/ddos_martummai/
 
   - src: ./pyproject.toml
     dst: /opt/ddos-martummai/pyproject.toml
