@@ -2,9 +2,9 @@ name: "Workflow DDoS MarTumMai Guard"
 
 on:
   push:
-    tags: [ "v*" ]
+    tags: ["v*"]
   pull_request:
-    branches: [ "main", "dev" ]
+    branches: ["main", "dev"]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -16,7 +16,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Install uv
         run: curl -LsSf https://astral.sh/uv/install.sh | sh
 
@@ -28,11 +28,10 @@ jobs:
 
       - name: Type Checking
         run: uv run mypy src/
-        
+
       - name: Security Scan
         continue-on-error: true
         run: uv run bandit -r src/ -c pyproject.toml --exclude tests/
-
 
   testing:
     name: Unit Testing
@@ -74,3 +73,4 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           files: ddos-martummai_*.deb
+          draft: true

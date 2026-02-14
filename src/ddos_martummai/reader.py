@@ -1,11 +1,13 @@
 import logging
+import os
 import subprocess  # nosec B404
+import sys
 import time
 from pathlib import Path
-import pandas as pd
 from queue import Queue
 from typing import Optional
 
+import pandas as pd
 
 from ddos_martummai.init_models import AppConfig
 
@@ -24,6 +26,7 @@ class Reader:
         return self.raw_packet_queue
 
     def start(self, input_file: Optional[Path] = None):
+        logger.info("Reader Start")
         self.running = True
 
         if self.mode == "live":
@@ -69,8 +72,9 @@ class Reader:
             except OSError as e:
                 logger.warning(f"Could not remove old CSV log: {e}")
 
+        cic_cmd = os.path.join(os.path.dirname(sys.executable), "cicflowmeter")
         cmd = [
-            "cicflowmeter",
+            cic_cmd,
             "-i",
             self.config.system.interface,
             "-c",
@@ -132,8 +136,9 @@ class Reader:
         if output_dir:
             output_dir.mkdir(parents=True, exist_ok=True)
 
+        cic_cmd = os.path.join(os.path.dirname(sys.executable), "cicflowmeter")
         cmd = [
-            "cicflowmeter",
+            cic_cmd,
             "-f",
             str(pcap_path),
             "-c",

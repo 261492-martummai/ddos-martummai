@@ -1,52 +1,76 @@
 import logging
+import sys
 import threading
 import time
 from pathlib import Path
 
 import click
+from click_option_group import optgroup
 
 from ddos_martummai.config_loader import DDoSConfigLoader
 from ddos_martummai.detector import DDoSDetector
+from ddos_martummai.init_models import AppConfig
+from ddos_martummai.logger import get_console_logger
 from ddos_martummai.preprocessor import DDoSPreprocessor
 from ddos_martummai.reader import Reader
+from ddos_martummai.setup_wizard import SetupWizard
+from ddos_martummai.util.constant import CONTEXT_SETTINGS
+from ddos_martummai.util.os_checker import is_root_privileged
+from ddos_martummai.util.path_helper import get_app_paths
 
-logger = logging.getLogger("MAIN")
+APP_PATHS = get_app_paths()
 
 
-@click.command()
-@click.option("--config-path", "-c", default=None, help="Path to config file")
-@click.option("--test-mode", "-t", is_flag=True, help="Enable test mode")
-@click.option("--file-path", "-f", help="Input file path (.pcap or .csv) for test mode")
-@click.option(
-    "--override-env",
-    "-o",
-    is_flag=True,
-    help="Override existing config form enironment variables",
+@click.command(context_settings=CONTEXT_SETTINGS)
+# Group 1: Modes
+@optgroup.group("Modes (Default: Real-time Monitor)")
+@optgroup.option(
+    "-t", "--test-mode", is_flag=True, help="Run in Test/Simulation mode (requires -f)."
 )
-@click.option("--verbose", "-v", is_flag=True, help="Enable debug logging")
-def main(config_path, test_mode, file_path, override_env, verbose):
-    # 1. Load Config First
-    loader = DDoSConfigLoader(config_path, override_env)
-    app_config = loader.app_config
+@optgroup.option("--setup", is_flag=True, help="Run the initial setup wizard and exit.")
+# Group 2: Test Arguments
+@optgroup.group("Test Arguments", help="(Required for --test-mode)")
+@optgroup.option(
+    "-f",
+    "--file-path",
+    metavar="FILE",
+    type=click.Path(exists=True),
+    help="Input pcap or csv file path for testing.",
+)
+# Group 3: Configuration
+@optgroup.group("Configuration Options")
+@optgroup.option(
+    "-c",
+    "--config-file",
+    metavar="FILE",
+    type=click.Path(exists=True),
+    help="Path to configuration file.",
+)
+@optgroup.option(
+    "-o",
+    "--override-env",
+    is_flag=True,
+    help="Override config with Environment Variables.",
+)
+# Group 4: General
+@optgroup.group("General Options")
+@optgroup.option("-v", "--verbose", is_flag=True, help="Enable debug logging.")
+def main(config_file, test_mode, file_path, override_env, setup, verbose):
+    """
+    DDoS MarTumMai Guard: A Fine-Tuned Machine Learning DDoS detection system.
+    """
+    config_file = Path(config_file) if config_file else APP_PATHS["config_file"]
 
-    logger.info("Starting DDoS Martummai Guard System...")
-
-    # 4. Find model and scaler paths relative to this file
-    current_dir = Path(__file__).parent.resolve()
-    model_dir = current_dir / "models"
-    model_path = model_dir / "model.joblib"
-    scaler_path = model_dir / "scaler.joblib"
-
-    mode = "csv"
+    mode = "live"
     if test_mode:
         if not file_path:
             click.echo("Error: --file is required for test mode")
-            return
+            sys.exit(1)
 
         file_path = Path(file_path)
         if not file_path.exists():
             click.echo(f"Error: File not found at {file_path}")
-            return
+            sys.exit(1)
 
         if file_path.suffix == ".pcap":
             mode = "pcap"
@@ -54,10 +78,47 @@ def main(config_path, test_mode, file_path, override_env, verbose):
             mode = "csv"
         else:
             click.echo("Error: Unsupported file format. Use .pcap or .csv")
+            sys.exit(1)
+    else:
+        if not is_root_privileged():
+            click.secho(
+                "\nError: Real-time Monitor and Setup mode requires root privileges!",
+                fg="red",
+                bold=True,
+            )
+            click.secho(
+                "   This mode captures live network packets and setting /etc config files, which require elevated permissions.",
+                fg="yellow",
+            )
+            click.secho("   Please run with: ", nl=False, fg="yellow")
+            click.secho(f"sudo {' '.join(sys.argv)}", fg="green", bold=True)
+            sys.exit(1)
+
+    if setup:
+        wizard = SetupWizard(config_file, AppConfig())
+        success = wizard.run()
+        if success:
+            sys.exit(0)
+        else:
+            sys.exit(1)
+
+    logger = get_console_logger(logging.DEBUG if verbose else logging.INFO)
+    logger.name = "MAIN"
+    logger.info("Starting DDoS Martummai Guard System...")
+
+    # 1. Load Config First
+    loader = DDoSConfigLoader(config_file, override_env)
+    app_config = loader.app_config
+
+    # 2. Find model and scaler paths relative to this file
+    current_dir = Path(__file__).parent.resolve()
+    model_dir = current_dir / "models"
+    model_path = model_dir / "model.joblib"
+    scaler_path = model_dir / "scaler.joblib"
 
     logger.info(f"Initializing modules in mode: {mode}")
 
-    # 5. Initialize
+    # 3. Initialize modules and threads
     reader = Reader(app_config, mode)
     preprocessor = DDoSPreprocessor(
         scaler_path,
@@ -131,7 +192,7 @@ def main(config_path, test_mode, file_path, override_env, verbose):
 
         logger.info("--- All systems shutdown safely ---")
         if isinstance(e, RuntimeError):
-            exit(1)
+            sys.exit(1)
 
 
 if __name__ == "__main__":
