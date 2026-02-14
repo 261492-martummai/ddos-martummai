@@ -38,6 +38,11 @@ contents:
     file_info:
       mode: 0755
 
+  - src: ./system/ddos-martummai
+    dst: /usr/bin/ddos-martummai
+    file_info:
+      mode: 0755
+
 scripts:
   postinstall: ./system/postinstall.sh
   preremove: ./system/preremove.sh

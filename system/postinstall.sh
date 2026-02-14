@@ -42,11 +42,11 @@ if command -v systemctl >/dev/null 2>&1; then
     systemctl reset-failed "$APP_NAME" 2>/dev/null || true
 fi
 
-echo "========================================================"
+echo "==========================================="
 echo "  DDoS MarTumMai Installed Successfully!"
-echo "========================================================"
+echo "==========================================="
 echo "PLEASE RUN THE SETUP WIZARD FIRST:"
-echo "   sudo martummai-setup"
+echo "   sudo ddos-martummai --setup"
 echo ""
 echo "Then start the service:"
 echo "   sudo systemctl start $APP_NAME"
@@ -56,6 +56,6 @@ echo "   sudo systemctl enable $APP_NAME"
 echo ""
 echo "Check status:"
 echo "   sudo systemctl status $APP_NAME"
-echo "========================================================"
+echo "==========================================="
 
 exit 0

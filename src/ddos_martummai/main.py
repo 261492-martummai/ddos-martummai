@@ -5,6 +5,7 @@ import time
 from pathlib import Path
 
 import click
+from click_option_group import optgroup
 
 from ddos_martummai.config_loader import DDoSConfigLoader
 from ddos_martummai.detector import DDoSDetector
@@ -13,27 +14,84 @@ from ddos_martummai.logger import get_console_logger
 from ddos_martummai.preprocessor import DDoSPreprocessor
 from ddos_martummai.reader import Reader
 from ddos_martummai.setup_wizard import SetupWizard
+from ddos_martummai.util.constant import CONTEXT_SETTINGS
+from ddos_martummai.util.os_checker import is_root_privileged
 from ddos_martummai.util.path_helper import get_app_paths
 
 APP_PATHS = get_app_paths()
 
 
-@click.command()
-@click.option("--config-file", "-c", default=None, help="Path to config file")
-@click.option("--test-mode", "-t", is_flag=True, help="Enable test mode")
-@click.option("--file-path", "-f", help="Input file path (.pcap or .csv) for test mode")
-@click.option(
-    "--override-env",
-    "-o",
-    is_flag=True,
-    help="Override existing config from environment variables",
+@click.command(context_settings=CONTEXT_SETTINGS)
+# Group 1: Modes
+@optgroup.group("Modes (Default: Real-time Monitor)")
+@optgroup.option(
+    "-t", "--test-mode", is_flag=True, help="Run in Test/Simulation mode (requires -f)."
 )
-@click.option("--setup-only", is_flag=True, help="Run setup wizard and exit")
-@click.option("--verbose", "-v", is_flag=True, help="Enable debug logging")
-def main(config_file, test_mode, file_path, override_env, setup_only, verbose):
+@optgroup.option("--setup", is_flag=True, help="Run the initial setup wizard and exit.")
+# Group 2: Test Arguments
+@optgroup.group("Test Arguments", help="(Required for --test-mode)")
+@optgroup.option(
+    "-f",
+    "--file-path",
+    metavar="FILE",
+    type=click.Path(exists=True),
+    help="Input pcap or csv file path for testing.",
+)
+# Group 3: Configuration
+@optgroup.group("Configuration Options")
+@optgroup.option(
+    "-c",
+    "--config-file",
+    metavar="FILE",
+    type=click.Path(exists=True),
+    help="Path to configuration file.",
+)
+@optgroup.option(
+    "-o",
+    "--override-env",
+    is_flag=True,
+    help="Override config with Environment Variables.",
+)
+# Group 4: General
+@optgroup.group("General Options")
+@optgroup.option("-v", "--verbose", is_flag=True, help="Enable debug logging.")
+def main(config_file, test_mode, file_path, override_env, setup, verbose):
+    """
+    DDoS MarTumMai Guard: A Fine-Tuned Machine Learning DDoS detection system.
+    """
     config_file = Path(config_file) if config_file else APP_PATHS["config_file"]
 
-    if setup_only:
+    mode = "live"
+    if test_mode:
+        if not file_path:
+            click.echo("Error: --file is required for test mode")
+            sys.exit(1)
+
+        file_path = Path(file_path)
+        if not file_path.exists():
+            click.echo(f"Error: File not found at {file_path}")
+            sys.exit(1)
+
+        if file_path.suffix == ".pcap":
+            mode = "pcap"
+        elif file_path.suffix == ".csv":
+            mode = "csv"
+        else:
+            click.echo("Error: Unsupported file format. Use .pcap or .csv")
+            sys.exit(1)
+    else:
+        if not is_root_privileged():
+            click.secho(
+                "\nError: Real-time Monitor mode requires root privileges!",
+                fg="red",
+                bold=True,
+            )
+            click.secho("   This mode captures live network packets.", fg="yellow")
+            click.secho("   Please run with: ", nl=False, fg="yellow")
+            click.secho(f"sudo {' '.join(sys.argv)}", fg="green", bold=True)
+            sys.exit(1)
+
+    if setup:
         wizard = SetupWizard(config_file, AppConfig())
         success = wizard.run()
         if success:
@@ -54,25 +112,6 @@ def main(config_file, test_mode, file_path, override_env, setup_only, verbose):
     model_dir = current_dir / "models"
     model_path = model_dir / "model.joblib"
     scaler_path = model_dir / "scaler.joblib"
-
-    mode = "live"
-    if test_mode:
-        if not file_path:
-            click.echo("Error: --file is required for test mode")
-            return
-
-        file_path = Path(file_path)
-        if not file_path.exists():
-            click.echo(f"Error: File not found at {file_path}")
-            return
-
-        if file_path.suffix == ".pcap":
-            mode = "pcap"
-        elif file_path.suffix == ".csv":
-            mode = "csv"
-        else:
-            click.echo("Error: Unsupported file format. Use .pcap or .csv")
-            return
 
     logger.info(f"Initializing modules in mode: {mode}")
 
@@ -150,7 +189,7 @@ def main(config_file, test_mode, file_path, override_env, setup_only, verbose):
 
         logger.info("--- All systems shutdown safely ---")
         if isinstance(e, RuntimeError):
-            exit(1)
+            sys.exit(1)
 
 
 if __name__ == "__main__":
