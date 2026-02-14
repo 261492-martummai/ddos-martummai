@@ -49,3 +49,8 @@ COLUMN_RENAME_MAP = {
     "active_mean": "Active Mean",
     "idle_mean": "Idle Mean",
 }
+
+CONTEXT_SETTINGS = dict(
+    help_option_names=["--help"],
+    max_content_width=120,
+)

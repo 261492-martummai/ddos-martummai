@@ -4,35 +4,47 @@ platform: "linux"
 version: "0.1.0"
 section: "admin"
 priority: "optional"
-maintainer: "Admin <admin@example.com>"
-description: "DDoS Detection System Service"
-vendor: "261492Project"
+maintainer: "Your Name <email@example.com>"
+description: "DDoS Detection System using Machine Learning"
+vendor: "CPE CMU"
 license: "MIT"
 
 contents:
-  # Source code
-  - src: ./src/
-    dst: /opt/ddos-martummai/src/
+  - src: ./src/ddos_martummai
+    dst: /opt/ddos-martummai/src/ddos_martummai
+
   - src: ./pyproject.toml
     dst: /opt/ddos-martummai/pyproject.toml
+
   - src: ./uv.lock
     dst: /opt/ddos-martummai/uv.lock
-  
-  # Service file
-  - src: ./system/ddos-martummai.service
-    dst: /lib/systemd/system/ddos-martummai.service
-  
-  # Default Config
-  - src: ./config/config.yml
-    dst: /etc/ddos-martummai/config.yml
+
+  - src: ./README.md
+    dst: /opt/ddos-martummai/README.md
+
+  - src: ./config/config.example.yml
+    dst: /opt/ddos-martummai/config.example.yml
     type: config
 
-# Scripts
+  - src: ./system/logrotate.conf
+    dst: /etc/logrotate.d/ddos-martummai
+    type: config
+
+  - src: ./system/ddos-martummai.service
+    dst: /lib/systemd/system/ddos-martummai.service
+
+  - src: ./system/ddos-martummai
+    dst: /usr/bin/ddos-martummai
+    file_info:
+      mode: 0755
+
 scripts:
-  postinstall: ./scripts/postinstall.sh
-  preremove: ./scripts/preremove.sh
+  postinstall: ./system/postinstall.sh
+  preremove: ./system/preremove.sh
 
 depends:
   - libpcap-dev
+  - python3
+  - python3-venv
   - iptables
   - git

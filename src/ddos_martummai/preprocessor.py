@@ -7,6 +7,7 @@ import joblib
 import numpy as np
 import pandas as pd
 from sklearn.preprocessing import MinMaxScaler
+
 from ddos_martummai.util.constant import COLUMN_RENAME_MAP
 
 logger = logging.getLogger("PREPROCESSOR")

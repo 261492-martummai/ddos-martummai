@@ -1,19 +1,19 @@
 [Unit]
-Description=DDoS MarTumMai Guard Detection Service
+Description=DDoS MarTumMai Guard Service
 After=network.target
 
 [Service]
 Type=simple
 User=root
-# Working directory for the service
 WorkingDirectory=/opt/ddos-martummai
-# Using uv to run the installed package
-ExecStart=/root/.cargo/bin/uv run ddos-martummai --config /etc/ddos-martummai/config.yml
+
+ExecStart=/opt/ddos-martummai/.venv/bin/ddos-martummai
+
 Restart=on-failure
 RestartSec=5
-# Direct logs to specific files
+
 StandardOutput=journal
-StandardError=append:/var/log/ddos-martummai/error.log
+StandardError=journal
 
 [Install]
 WantedBy=multi-user.target

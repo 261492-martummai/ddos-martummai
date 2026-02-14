@@ -1,9 +1,9 @@
+import logging
 import os
 import shutil
 import sys
 from dataclasses import fields
 from pathlib import Path
-from typing import Optional
 
 import yaml
 
@@ -13,20 +13,17 @@ from ddos_martummai.init_models import (
     ModelConfig,
     SystemConfig,
 )
-from ddos_martummai.logger import attach_file_logging, get_console_logger
+from ddos_martummai.logger import attach_file_logging
 from ddos_martummai.setup_wizard import SetupWizard
+from ddos_martummai.util.path_helper import get_app_paths
 
-logger = get_console_logger()
-
-BASE_DIR = Path(__file__).resolve().parent.parent.parent
-CONFIG_DIR = BASE_DIR / "config"
-DEFAULT_CONFIG_PATH = CONFIG_DIR / "config.yml"
-TEMPLATE_CONFIG_PATH = CONFIG_DIR / "config.example.yml"
+logger = logging.getLogger("CONFIG")
+APP_PATHS = get_app_paths()
 
 
 class DDoSConfigLoader:
-    def __init__(self, config_path: Optional[str] = None, override_env: bool = False):
-        self.config_file = Path(config_path) if config_path else DEFAULT_CONFIG_PATH
+    def __init__(self, config_file: Path, override_env: bool = False):
+        self.config_file = config_file
         self.override_env = override_env
         self.app_config: AppConfig = AppConfig()
 
@@ -49,9 +46,9 @@ class DDoSConfigLoader:
 
         self.config_file.parent.mkdir(parents=True, exist_ok=True)
 
-        if TEMPLATE_CONFIG_PATH.exists():
+        if APP_PATHS["template_config"].exists():
             logger.info("Copying from template...")
-            shutil.copy(TEMPLATE_CONFIG_PATH, self.config_file)
+            shutil.copy(APP_PATHS["template_config"], self.config_file)
         else:
             logger.info("Creating from internal defaults...")
             with open(self.config_file, "w") as f:
@@ -68,21 +65,21 @@ class DDoSConfigLoader:
         )
 
     def _inject_system_paths(self):
-        output_dir = BASE_DIR / "cic_output"
-        log_dir = BASE_DIR / "logs"
-        output_dir.mkdir(exist_ok=True)
-        log_dir.mkdir(exist_ok=True)
+        data_dir = APP_PATHS["data_dir"]
+        log = APP_PATHS["log_file"]
+        data_dir.mkdir(exist_ok=True)
+        log.parent.mkdir(parents=True, exist_ok=True)
 
         if not self.app_config.system.csv_output_path:
-            self.app_config.system.csv_output_path = str(output_dir / "flow_logs.csv")
+            self.app_config.system.csv_output_path = str(data_dir / "flow_logs.csv")
 
         if not self.app_config.system.test_mode_output_path:
             self.app_config.system.test_mode_output_path = str(
-                output_dir / "test_results.csv"
+                data_dir / "test_results.csv"
             )
 
         if not self.app_config.system.log_file_path:
-            self.app_config.system.log_file_path = str(log_dir / "service.log")
+            self.app_config.system.log_file_path = str(log)
 
     def _check_override_env(self):
         if not self.override_env:

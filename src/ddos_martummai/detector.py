@@ -28,7 +28,7 @@ class DDoSDetector:
         self.batch_size = config.model.batch_size
 
     def start(self):
-        logger.info("Detector: Start")
+        logger.info("Detector Start")
         while True:
             batch = self.cleaned_packet_queue.get()
 
@@ -79,20 +79,20 @@ class DDoSDetector:
             )
             # # ตั้งค่า Threshold (ควรดึงจาก Config)
             # # เช่น 0.5 หมายถึง ถ้าเกิน 50% ของ traffic จาก IP นี้เป็น Attack -> Block
-            ATTACK_THRESHOLD = 0.5
-            MIN_PACKETS = 2  # กันเหนียว: ต้องส่งมาอย่างน้อย 2 packet ถึงจะตัดสิน (ลด noise)
+            # ATTACK_THRESHOLD = 0.5
+            # MIN_PACKETS = 2  # กันเหนียว: ต้องส่งมาอย่างน้อย 2 packet ถึงจะตัดสิน (ลด noise)
 
-            # # Filter เอาเฉพาะคนที่เป็น Hacker (Mean > Threshold)
-            attackers = ip_stats[
-                (ip_stats["mean"] > ATTACK_THRESHOLD)
-                & (ip_stats["count"] >= MIN_PACKETS)
-            ]
-            for ip, row in attackers.iterrows():
-                logger.warning(f"[DETECTED] DDoS from {ip}")
-                self.mitigator.send_alert(str(ip), row.to_string())
-                # self.mitigator.block_ip(ip)
+            # # # Filter เอาเฉพาะคนที่เป็น Hacker (Mean > Threshold)
+            # attackers = ip_stats[
+            #     (ip_stats["mean"] > ATTACK_THRESHOLD)
+            #     & (ip_stats["count"] >= MIN_PACKETS)
+            # ]
+            # for ip, row in attackers.iterrows():
+            #     logger.warning(f"[DETECTED] DDoS from {ip}")
+            #     self.mitigator.send_alert(str(ip), row.to_string())
+            #     # self.mitigator.block_ip(ip)
 
-            # # 5. Mitigation Action
+            # # # 5. Mitigation Action
 
         except Exception as e:
             logger.exception(f"Batch prediction error: {e}")
