@@ -83,6 +83,9 @@ class SetupWizard:
                     choices=interfaces,
                 ).ask()
 
+            if selected is None:
+                raise KeyboardInterrupt
+
             if selected:
                 self.app_config.system.interface = selected
                 console.print(f"[green]Selected Interface: {selected}[/green]")

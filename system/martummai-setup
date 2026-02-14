@@ -1,2 +1,0 @@
-#!/bin/bash
-sudo /opt/ddos-martummai/.venv/bin/ddos-martummai --setup-only

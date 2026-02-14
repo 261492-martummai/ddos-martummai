@@ -82,11 +82,14 @@ def main(config_file, test_mode, file_path, override_env, setup, verbose):
     else:
         if not is_root_privileged():
             click.secho(
-                "\nError: Real-time Monitor mode requires root privileges!",
+                "\nError: Real-time Monitor and Setup mode requires root privileges!",
                 fg="red",
                 bold=True,
             )
-            click.secho("   This mode captures live network packets.", fg="yellow")
+            click.secho(
+                "   This mode captures live network packets and setting /etc config files, which require elevated permissions.",
+                fg="yellow",
+            )
             click.secho("   Please run with: ", nl=False, fg="yellow")
             click.secho(f"sudo {' '.join(sys.argv)}", fg="green", bold=True)
             sys.exit(1)
@@ -107,7 +110,7 @@ def main(config_file, test_mode, file_path, override_env, setup, verbose):
     loader = DDoSConfigLoader(config_file, override_env)
     app_config = loader.app_config
 
-    # 4. Find model and scaler paths relative to this file
+    # 2. Find model and scaler paths relative to this file
     current_dir = Path(__file__).parent.resolve()
     model_dir = current_dir / "models"
     model_path = model_dir / "model.joblib"
@@ -115,7 +118,7 @@ def main(config_file, test_mode, file_path, override_env, setup, verbose):
 
     logger.info(f"Initializing modules in mode: {mode}")
 
-    # 5. Initialize
+    # 3. Initialize modules and threads
     reader = Reader(app_config, mode)
     preprocessor = DDoSPreprocessor(
         scaler_path,

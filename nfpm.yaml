@@ -33,11 +33,6 @@ contents:
   - src: ./system/ddos-martummai.service
     dst: /lib/systemd/system/ddos-martummai.service
 
-  - src: ./system/martummai-setup
-    dst: /usr/bin/martummai-setup
-    file_info:
-      mode: 0755
-
   - src: ./system/ddos-martummai
     dst: /usr/bin/ddos-martummai
     file_info:

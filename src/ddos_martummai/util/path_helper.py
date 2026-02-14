@@ -6,7 +6,7 @@ APP_NAME = "ddos-martummai"
 
 
 def get_app_paths() -> Dict[str, Path]:
-    is_linux_prod = sys.platform == "linux" and Path(f"/etc/{APP_NAME}").exists()
+    is_linux_prod = sys.platform == "linux" and Path(f"/opt/{APP_NAME}").exists()
 
     if is_linux_prod:
         # "mode": "production"
