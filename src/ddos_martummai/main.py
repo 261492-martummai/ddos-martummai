@@ -37,7 +37,7 @@ def main(config_path, test_mode, file_path, override_env, verbose):
     model_path = model_dir / "model.joblib"
     scaler_path = model_dir / "scaler.joblib"
 
-    mode = "csv"
+    mode = "live"
     if test_mode:
         if not file_path:
             click.echo("Error: --file is required for test mode")

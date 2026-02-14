@@ -12,8 +12,11 @@ from ddos_martummai.util.constant import COLUMN_RENAME_MAP
 logger = logging.getLogger("PREPROCESSOR")
 
 
+# ============================================================================
+# PURE FUNCTIONS
+# ============================================================================
 def clean_column_names(df: pd.DataFrame) -> pd.DataFrame:
-    """Strip whitespace from column names and normalize to lowercase with underscores."""
+    """Strip whitespace from column names."""
     df_clean = df.copy()
     df_clean.columns = df_clean.columns.str.strip()
 
@@ -23,9 +26,11 @@ def clean_column_names(df: pd.DataFrame) -> pd.DataFrame:
 def select_numeric_columns(
     df: pd.DataFrame, feature_cols: list
 ) -> Tuple[pd.DataFrame, pd.DataFrame]:
-    """Select only numeric columns from dataframe."""
+    """Split src_ip and feature columns from dataframe."""
     src_ip_df = df[["src_ip"]].copy()
-    return src_ip_df, df[feature_cols].copy()
+    feature_df = df[feature_cols].copy()
+    
+    return src_ip_df, feature_df
 
 
 def handle_missing_values(df: pd.DataFrame) -> pd.DataFrame:
@@ -37,6 +42,7 @@ def handle_missing_values(df: pd.DataFrame) -> pd.DataFrame:
     medians = df_clean.median()
     df_clean.fillna(medians, inplace=True)
     logger.info(f"Filled {df.isnull().sum().sum()} missing values")
+
     return df_clean
 
 
@@ -50,6 +56,7 @@ def handle_infinite_values(df: pd.DataFrame) -> pd.DataFrame:
     medians = df_clean.median()
     df_clean.fillna(medians, inplace=True)
     logger.info("Replaced infinite values")
+
     return df_clean
 
 
@@ -64,92 +71,70 @@ def convert_to_float32(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def scale_features(df: pd.DataFrame, scaler: MinMaxScaler) -> pd.DataFrame:
-    """
-    Scale features using MinMaxScaler.
-
-    Args:
-        df: Input dataframe
-        scaler: Pre-fitted scaler (for inference). If None, fit new scaler.
-
-    Returns:
-        Scaled dataframe
-    """
+    """Scale features using a pre-fitted MinMaxScaler."""
     scaled_data = scaler.transform(df)
-    scaled_df = pd.DataFrame(scaled_data, columns=df.columns, index=df.index)
 
-    return scaled_df
+    return pd.DataFrame(scaled_data, columns=df.columns, index=df.index)
 
 
-def process_chunk(
-    df: pd.DataFrame,
+# ============================================================================
+# PIPELINE
+# ============================================================================
+def process_batch(
+    raw_packet_df: pd.DataFrame, 
     scaler: MinMaxScaler,
     batch_size: int,
 ) -> pd.DataFrame:
     """
-    Process a single chunk through the complete pipeline.
+    Process a dataframe in batches through the full preprocessing pipeline.
 
     Args:
-        df: Raw data dataframe
-        feature_cols: List of feature columns to select
-        rename_map: Dictionary for renaming columns
-        scaler: Pre-fitted scaler (for inference). If None, fit new scaler.
+        raw_df: Raw input dataframe (never mutated)
+        scaler: Pre-fitted MinMaxScaler
+        batch_size: Number of rows to process per batch
 
     Returns:
-        Tuple of (processed_df, scaler)
+        Fully processed dataframe with src_ip prepended
     """
     rename_map = COLUMN_RENAME_MAP
-    processed_batchs = []
+    processed_batches = []
     total_rows = 0
 
     try:
-        for i in range(0, len(df), batch_size):
-            chunk = df.iloc[i : i + batch_size]
-            df = clean_column_names(chunk)
-            src_ip_df, df = select_numeric_columns(df, list(rename_map.keys()))
-            df = convert_to_float32(df)
-            df = rename_columns(df, rename_map)
-            df = handle_missing_values(df)
-            df = handle_infinite_values(df)
-            df = scale_features(df, scaler)
+        for batch_num, i in enumerate(range(0, len(raw_packet_df), batch_size), start=1):
+            batch = raw_packet_df.iloc[i : i + batch_size].copy()
 
-            df.insert(0, "src_ip", src_ip_df.reset_index(drop=True)["src_ip"])
-            processed_batchs.append(df)
+            batch = clean_column_names(batch)
+            feature_cols = list(rename_map.keys())
+            src_ip_df, batch = select_numeric_columns(batch, feature_cols)
+            batch = convert_to_float32(batch)
+            batch = rename_columns(batch, rename_map)
+            batch = handle_missing_values(batch)
+            batch = handle_infinite_values(batch)
+            batch = scale_features(batch, scaler)
 
-            total_rows += len(df)
-            logger.info(f"Processed {i + 1} batches ({total_rows} rows)")
+            batch.insert(0, "src_ip", src_ip_df.reset_index(drop=True)["src_ip"])
+            processed_batches.append(batch)
 
-        if processed_batchs:
-            df = pd.concat(processed_batchs, ignore_index=True)
-            logger.info(f"Preprocessing complete. Total rows: {len(df)}")
-            return df
-        else:
-            logger.warning("No data processed")
-            return pd.DataFrame()
+            total_rows += len(batch)
+            logger.info(f"Processed batch {batch_num} ({total_rows} rows total)")
+
+        if processed_batches:
+            result_df = pd.concat(processed_batches, ignore_index=True)
+            logger.info(f"Preprocessing complete. Total rows: {len(result_df)}")
+            return result_df
+
+        logger.warning("No data processed")
+        return pd.DataFrame()
+
     except Exception as e:
         logger.error(f"Error during preprocessing: {str(e)}")
         raise
 
 
-def preprocess_realtime_data(
-    df: pd.DataFrame,
-    scaler: MinMaxScaler,
-    batch_size: int,
-) -> pd.DataFrame:
-    """
-    Preprocess real-time data for inference using pre-fitted scaler.
-
-    Args:
-        df: Raw input dataframe
-        scaler: Pre-fitted scaler from training
-        feature_cols: List of feature columns
-        rename_map: Column rename mapping
-
-    Returns:
-        Processed dataframe ready for model inference
-    """
-    processed_df = process_chunk(df, scaler, batch_size)
-    return processed_df
-
+# ============================================================================
+# SCALER PERSISTENCE
+# ============================================================================
 
 def save_scaler(scaler: MinMaxScaler, output_path: str) -> None:
     """Save fitted scaler to disk."""
@@ -167,11 +152,18 @@ def load_scaler(scaler_path: str) -> MinMaxScaler:
     return scaler
 
 
+# ============================================================================
+# PREPROCESSOR CLASS
+# ============================================================================
+
 class DDoSPreprocessor:
     """Production-ready preprocessor for DDoS detection."""
 
     def __init__(
-        self, scaler_path: str, batch_size: int, raw_packet_queue: Queue[dict | None]
+        self,
+        scaler_path: str,
+        batch_size: int,
+        raw_packet_queue: Queue[dict | None],
     ):
         self.scaler = load_scaler(scaler_path)
         self.batch_size = batch_size
@@ -182,65 +174,83 @@ class DDoSPreprocessor:
         return self.cleaned_packet_queue
 
     def start(self):
+        """
+        Consume raw_packet_queue, batch packets, preprocess, and enqueue results.
+
+        Stop conditions:
+          - sentinel None received from upstream
+          - Empty timeout with leftover buffer (flush then keep waiting)
+          - Unrecoverable error in _flush_buffer
+        """
+        logger.info("Preprocessor started.")
         buffer = []
 
         while True:
             try:
                 packet = self.raw_packet_queue.get(timeout=0.1)
-
                 if packet is None:
                     if buffer:
-                        self._flush_buffer(buffer)
+                        logger.info(f"Flushing remaining {len(buffer)} packets.")
+                        success = self.flush_buffer(buffer)
+                        buffer = []
+                        if not success:       
+                            break
+                        
                     self.cleaned_packet_queue.put(None)
-                    self.stop()
+                    logger.info("Preprocessor stopped.")
                     break
 
                 buffer.append(packet)
 
                 if len(buffer) >= self.batch_size:
-                    logger.info(f"Flushing due to batch size (Buffer: {len(buffer)})")
-                    self._flush_buffer(buffer)
+                    logger.info(f"Flushing due to batch size (buffer: {len(buffer)})")
+                    success = self.flush_buffer(buffer)
                     buffer = []
-                    continue
-
+                    if not success:          
+                        self.cleaned_packet_queue.put(None)
+                        logger.info("Preprocessor stopped after flush error.")
+                        break
             except Empty:
                 if buffer:
-                    logger.info(
-                        f"Flushing due to Empty Queue pipe (Buffer: {len(buffer)})"
-                    )
-                    self._flush_buffer(buffer)
+                    logger.info(f"Flushing due to empty queue (buffer: {len(buffer)})")
+                    success = self.flush_buffer(buffer)
                     buffer = []
+                    if not success:
+                        self.cleaned_packet_queue.put(None)
+                        logger.info("Preprocessor stopped after flush error.")
+                        break
 
-    def _flush_buffer(self, buffer):
+    def flush_buffer(self, buffer: list) -> bool:
+        """
+        Convert buffer to DataFrame, preprocess, and enqueue result.
+
+        Returns:
+            True if successful, False on error
+        """
         try:
             df = pd.DataFrame(buffer)
-
             processed_df = self.transform(df)
             self.cleaned_packet_queue.put(processed_df)
-
-            logger.debug(f"Flushed batch of {len(buffer)} packets")
+            logger.debug(f"Flushed batch of {len(buffer)} packets.")
+            return True
         except Exception as e:
             logger.error(f"Error flushing buffer: {e}")
-
-    def stop(self):
-        logger.info("Preprocessor Stopping...")
-        self.cleaned_packet_queue.put(None)
-        logger.info("Preprocessor Stopped.")
+            return False
 
     def transform(self, df: pd.DataFrame) -> pd.DataFrame:
         """
-        Transform new data using fitted scaler (for inference).
+        Transform raw data using the fitted scaler.
 
         Args:
-            df: Raw input data
+            df: Raw input dataframe
 
         Returns:
-            Processed data ready for model
+            Processed dataframe ready for model inference
         """
-        return preprocess_realtime_data(df, self.scaler, self.batch_size)
+        return process_batch(df, self.scaler, self.batch_size)
 
     def save_scaler(self, output_path: str) -> None:
-        """Save the fitted scaler."""
+        """Save the fitted scaler to disk."""
         if self.scaler is None:
             raise ValueError("No scaler to save. Fit the preprocessor first.")
         save_scaler(self.scaler, output_path)
