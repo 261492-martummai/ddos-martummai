@@ -30,7 +30,7 @@ def select_numeric_columns(
     """Split src_ip and feature columns from dataframe."""
     src_ip_df = df[["src_ip"]].copy()
     feature_df = df[feature_cols].copy()
-    
+
     return src_ip_df, feature_df
 
 
@@ -82,7 +82,7 @@ def scale_features(df: pd.DataFrame, scaler: MinMaxScaler) -> pd.DataFrame:
 # PIPELINE
 # ============================================================================
 def process_batch(
-    raw_packet_df: pd.DataFrame, 
+    raw_packet_df: pd.DataFrame,
     scaler: MinMaxScaler,
     batch_size: int,
 ) -> pd.DataFrame:
@@ -102,7 +102,9 @@ def process_batch(
     total_rows = 0
 
     try:
-        for batch_num, i in enumerate(range(0, len(raw_packet_df), batch_size), start=1):
+        for batch_num, i in enumerate(
+            range(0, len(raw_packet_df), batch_size), start=1
+        ):
             batch = raw_packet_df.iloc[i : i + batch_size].copy()
 
             batch = clean_column_names(batch)
@@ -137,6 +139,7 @@ def process_batch(
 # SCALER PERSISTENCE
 # ============================================================================
 
+
 def save_scaler(scaler: MinMaxScaler, output_path: str) -> None:
     """Save fitted scaler to disk."""
     Path(output_path).parent.mkdir(parents=True, exist_ok=True)
@@ -156,6 +159,7 @@ def load_scaler(scaler_path: str) -> MinMaxScaler:
 # ============================================================================
 # PREPROCESSOR CLASS
 # ============================================================================
+
 
 class DDoSPreprocessor:
     """Production-ready preprocessor for DDoS detection."""
@@ -183,7 +187,7 @@ class DDoSPreprocessor:
           - Empty timeout with leftover buffer (flush then keep waiting)
           - Unrecoverable error in _flush_buffer
         """
-        logger.info("Preprocessor started.")
+        logger.info("Preprocessor Started.")
         buffer = []
 
         while True:
@@ -194,9 +198,9 @@ class DDoSPreprocessor:
                         logger.info(f"Flushing remaining {len(buffer)} packets.")
                         success = self.flush_buffer(buffer)
                         buffer = []
-                        if not success:       
+                        if not success:
                             break
-                        
+
                     self.cleaned_packet_queue.put(None)
                     logger.info("Preprocessor stopped.")
                     break
@@ -207,7 +211,7 @@ class DDoSPreprocessor:
                     logger.info(f"Flushing due to batch size (buffer: {len(buffer)})")
                     success = self.flush_buffer(buffer)
                     buffer = []
-                    if not success:          
+                    if not success:
                         self.cleaned_packet_queue.put(None)
                         logger.info("Preprocessor stopped after flush error.")
                         break

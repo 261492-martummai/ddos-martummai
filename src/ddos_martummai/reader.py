@@ -28,7 +28,7 @@ class Reader:
     # ---------- Public API ----------
 
     def start(self, input_file: Optional[Path] = None):
-        logger.info("Reader started")
+        logger.info("Reader Started")
         self.running = True
 
         try:
@@ -41,7 +41,7 @@ class Reader:
             else:
                 raise ValueError(f"Unknown mode: {self.mode}")
         finally:
-            self._shutdown()
+            self._sent_shutdown_signal()
 
     def stop(self):
         logger.info("Stopping Reader...")
@@ -72,9 +72,7 @@ class Reader:
     # ---------- CICFlowMeter ----------
 
     def _start_cicflowmeter_live(self, csv_path: Path):
-        cmd = self._build_cic_cmd(
-            "-i", self.config.system.interface, csv_path
-        )
+        cmd = self._build_cic_cmd("-i", self.config.system.interface, csv_path)
         self.cic_process = subprocess.Popen(cmd)  # nosec B603
         logger.info("CICFlowMeter started")
 
@@ -100,16 +98,19 @@ class Reader:
         csv_path.parent.mkdir(parents=True, exist_ok=True)
         if csv_path.exists():
             csv_path.unlink()
-            logger.info(f"Removed old CSV: {csv_path}")
+            logger.debug("Removed old cicflowmeter output")
 
     def _stream_csv(self, csv_path: Path):
-        logger.info(f"Waiting for CSV: {csv_path}")
+        logger.info("Waiting for cicflowmeter output")
 
         while not csv_path.exists() and self.running:
             time.sleep(0.5)
 
         with open(csv_path, "r") as f:
             headers = self._wait_for_header(f)
+
+            logger.info("Started streaming cicflowmeter output")
+
             for line in self._follow_file(f):
                 if not line.strip():
                     continue
@@ -119,11 +120,11 @@ class Reader:
                     self.raw_packet_queue.put(dict(zip(headers, record)))
 
     def _wait_for_header(self, file):
-        logger.info("Waiting for CSV headers...")
+        logger.debug("Waiting for feature headers...")
         while self.running:
             line = file.readline()
             if line.strip():
-                logger.info("Headers detected")
+                logger.debug("Headers detected")
                 return line.strip().split(",")
             time.sleep(0.3)
 
@@ -153,7 +154,6 @@ class Reader:
 
     # ---------- Shutdown ----------
 
-    def _shutdown(self):
-        self.stop()
+    def _sent_shutdown_signal(self):
         self.raw_packet_queue.put(None)
         logger.info("Reader stopped")
