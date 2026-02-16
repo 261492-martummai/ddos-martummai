@@ -72,9 +72,7 @@ class Reader:
     # ---------- CICFlowMeter ----------
 
     def _start_cicflowmeter_live(self, csv_path: Path):
-        cmd = self._build_cic_cmd(
-            "-i", self.config.system.interface, csv_path
-        )
+        cmd = self._build_cic_cmd("-i", self.config.system.interface, csv_path)
         self.cic_process = subprocess.Popen(cmd)  # nosec B603
         logger.info("CICFlowMeter started")
 
