@@ -8,6 +8,7 @@ dependencies = [
     "cicflowmeter @ git+https://github.com/hieulw/cicflowmeter.git@master",
     "click>=8.3.1",
     "click-option-group>=0.5.9",
+    "fastapi>=0.129.0",
     "joblib>=1.5.3",
     "pandas>=3.0.0",
     "psutil>=7.2.1",
@@ -15,6 +16,8 @@ dependencies = [
     "questionary>=2.1.1",
     "rich>=14.2.0",
     "scikit-learn>=1.8.0",
+    "uvicorn>=0.40.0",
+    "websockets>=16.0",
     "xgboost>=3.2.0",
 ]
 

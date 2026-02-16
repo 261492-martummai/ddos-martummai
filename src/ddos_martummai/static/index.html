@@ -1,0 +1,154 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Network Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+      body {
+        margin: 0;
+        font-family: Arial, sans-serif;
+        background: #0f172a;
+        color: white;
+      }
+
+      h2 {
+        margin: 5px 0;
+        font-size: 16px;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: 2fr 1fr;
+        grid-template-rows: 1fr 1fr;
+        height: 100vh;
+        gap: 10px;
+        padding: 10px;
+      }
+
+      .card {
+        background: #020617;
+        border-radius: 10px;
+        padding: 10px;
+        overflow: hidden;
+      }
+
+      #table {
+        width: 100%;
+        font-size: 12px;
+      }
+
+      #table th {
+        position: sticky;
+        top: 0;
+        background: #020617;
+      }
+
+      .scroll {
+        max-height: 90%;
+        overflow-y: auto;
+      }
+
+      canvas {
+        width: 100% !important;
+        height: 100% !important;
+      }
+
+      @media (max-width: 900px) {
+        .grid {
+          grid-template-columns: 1fr;
+          grid-template-rows: 1fr 1fr 1fr;
+        }
+      }
+    </style>
+  </head>
+
+  <body>
+    <div class="grid">
+      <div class="card">
+        <h2>Bandwidth (bytes/sec)</h2>
+        <canvas id="bw"></canvas>
+      </div>
+
+      <div class="card">
+        <h2>Port Distribution</h2>
+        <canvas id="ports"></canvas>
+      </div>
+
+      <div class="card" style="grid-column: span 2">
+        <h2>Live Packets</h2>
+        <div class="scroll">
+          <table border="1" id="table"></table>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const ws = new WebSocket("ws://localhost:8000/ws");
+
+      let bwChart = new Chart(bw, {
+        type: "line",
+        options: { responsive: true, maintainAspectRatio: false },
+        data: { labels: [], datasets: [{ label: "Bytes/sec", data: [] }] },
+      });
+
+      let portChart = new Chart(ports, {
+        type: "bar",
+        options: { responsive: true, maintainAspectRatio: false },
+        data: { labels: [], datasets: [{ label: "Packets", data: [] }] },
+      });
+
+      ws.onmessage = (e) => {
+        let data = JSON.parse(e.data);
+
+        bwChart.data.labels = data.bandwidth.map((_, i) => i);
+        bwChart.data.datasets[0].data = data.bandwidth;
+        bwChart.update();
+
+        portChart.data.labels = Object.keys(data.ports);
+        portChart.data.datasets[0].data = Object.values(data.ports);
+        portChart.update();
+
+        let html = `
+<tr>
+<th>Time</th>
+<th>Src IP</th>
+<th>Dst IP</th>
+<th>Port</th>
+<th>Packets</th>
+<th>Bytes</th>
+<th>SYN</th>
+<th>ACK</th>
+<th>PSH</th>
+<th>RST</th>
+<th>FIN</th>
+<th>Window Start(ns)</th>
+<th>Duration(ns)</th>
+</tr>
+`;
+
+        data.table.forEach((p) => {
+          html += `<tr>
+    <td>${p.time}</td>
+    <td>${p.src}</td>
+    <td>${p.dst}</td>
+    <td>${p.port}</td>
+    <td>${p.packets}</td>
+    <td>${p.bytes}</td>
+    <td>${p.syn}</td>
+    <td>${p.ack}</td>
+    <td>${p.psh}</td>
+    <td>${p.rst}</td>
+    <td>${p.fin}</td>
+    <td>${p.start}</td>
+    <td>${p.duration}</td>
+  </tr>`;
+        });
+
+        table.innerHTML = html;
+      };
+    </script>
+  </body>
+</html>

@@ -5,12 +5,15 @@ import time
 from pathlib import Path
 
 import click
+import uvicorn
 from click_option_group import optgroup
 
+from ddos_martummai import monitor
 from ddos_martummai.config_loader import DDoSConfigLoader
 from ddos_martummai.detector import DDoSDetector
 from ddos_martummai.init_models import AppConfig
 from ddos_martummai.logger import get_console_logger
+from ddos_martummai.monitor import app
 from ddos_martummai.preprocessor import DDoSPreprocessor
 from ddos_martummai.reader import Reader
 from ddos_martummai.setup_wizard import SetupWizard
@@ -120,6 +123,14 @@ def main(config_file, test_mode, file_path, override_env, setup, verbose):
 
     # 3. Initialize modules and threads
     reader = Reader(app_config, mode)
+    
+    t_web = threading.Thread(
+        target=lambda: uvicorn.run(app, host="localhost", port=8000),
+        daemon=True,
+    )
+    t_web.start()
+    monitor.start()
+    
     preprocessor = DDoSPreprocessor(
         scaler_path,
         app_config.model.batch_size,
@@ -133,12 +144,12 @@ def main(config_file, test_mode, file_path, override_env, setup, verbose):
         t_reader = threading.Thread(target=reader.start, args=(file_path,))
     t_prep = threading.Thread(target=preprocessor.start)
     t_det = threading.Thread(target=detector.start)
-
+    
     logger.info("Starting worker threads...")
     t_det.start()
     t_prep.start()
     t_reader.start()
-
+    
     try:
         while True:
             time.sleep(1)
