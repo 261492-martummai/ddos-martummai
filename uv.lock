@@ -76,17 +76,6 @@ wheels = [
 ]
 
 [[package]]
-name = "cicflowmeter"
-version = "0.4.2"
-source = { git = "https://github.com/hieulw/cicflowmeter.git?rev=master#61ca5ab945e6043b9b6f20c0b4b5b7828b5ce8f8" }
-dependencies = [
-    { name = "numpy" },
-    { name = "requests" },
-    { name = "scapy" },
-    { name = "scipy" },
-]
-
-[[package]]
 name = "click"
 version = "8.3.1"
 source = { registry = "https://pypi.org/simple" }
@@ -185,16 +174,19 @@ name = "ddos-martummai"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
-    { name = "cicflowmeter" },
     { name = "click" },
     { name = "click-option-group" },
     { name = "joblib" },
+    { name = "numpy" },
     { name = "pandas" },
     { name = "psutil" },
     { name = "pyyaml" },
     { name = "questionary" },
+    { name = "requests" },
     { name = "rich" },
+    { name = "scapy" },
     { name = "scikit-learn" },
+    { name = "scipy" },
     { name = "xgboost" },
 ]
 
@@ -212,16 +204,19 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "cicflowmeter", git = "https://github.com/hieulw/cicflowmeter.git?rev=master" },
     { name = "click", specifier = ">=8.3.1" },
     { name = "click-option-group", specifier = ">=0.5.9" },
     { name = "joblib", specifier = ">=1.5.3" },
+    { name = "numpy", specifier = ">=1.26.2" },
     { name = "pandas", specifier = ">=3.0.0" },
     { name = "psutil", specifier = ">=7.2.1" },
     { name = "pyyaml", specifier = ">=6.0.3" },
     { name = "questionary", specifier = ">=2.1.1" },
+    { name = "requests", specifier = ">=2.31.0" },
     { name = "rich", specifier = ">=14.2.0" },
+    { name = "scapy", specifier = ">=2.5.0" },
     { name = "scikit-learn", specifier = ">=1.8.0" },
+    { name = "scipy", specifier = ">=1.11.4" },
     { name = "xgboost", specifier = ">=3.2.0" },
 ]
 
