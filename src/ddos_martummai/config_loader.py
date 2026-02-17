@@ -2,7 +2,7 @@ import logging
 import os
 import shutil
 import sys
-from dataclasses import fields
+from dataclasses import asdict, fields
 from pathlib import Path
 
 import yaml
@@ -27,6 +27,7 @@ class DDoSConfigLoader:
         self.override_env = override_env
         self.app_config: AppConfig = AppConfig()
 
+    def load(self) -> AppConfig:
         logger.info("Load Configuration")
 
         self._ensure_config_file_exists()
@@ -37,6 +38,7 @@ class DDoSConfigLoader:
         self._setup_logger()
 
         logger.info("Configuration Loaded Successfully")
+        return self.app_config
 
     def _ensure_config_file_exists(self):
         if self.config_file.exists():
@@ -52,7 +54,7 @@ class DDoSConfigLoader:
         else:
             logger.info("Creating from internal defaults...")
             with open(self.config_file, "w") as f:
-                yaml.dump(AppConfig(), f)
+                yaml.dump(asdict(AppConfig()), f)
 
     def _load_app_config(self):
         with open(self.config_file) as f:
@@ -126,8 +128,7 @@ class DDoSConfigLoader:
         mit = cfg.mitigation
         if not mit.admin_email:
             errors.append("Admin Email is required")
-
-        if mit.admin_email:
+        else:
             if not mit.smtp_user:
                 errors.append("SMTP User is required")
             if not mit.smtp_password:

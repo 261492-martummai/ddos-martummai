@@ -108,7 +108,7 @@ def main(config_file, test_mode, file_path, override_env, setup, verbose):
 
     # 1. Load Config First
     loader = DDoSConfigLoader(config_file, override_env)
-    app_config = loader.app_config
+    app_config = loader.load()
 
     # 2. Find model and scaler paths relative to this file
     current_dir = Path(__file__).parent.resolve()
