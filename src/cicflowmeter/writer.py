@@ -29,6 +29,7 @@ class CSVWriter(OutputWriter):
     def __del__(self):
         self.file.close()
 
+
 class RotatingCSVWriter:
     def __init__(self, output_dir, max_rows=1000) -> None:
         self.output_dir = output_dir
@@ -37,19 +38,19 @@ class RotatingCSVWriter:
         self.file_index = 0
         self.current_file = None
         self.writer = None
-        
-        self.lock = threading.Lock() 
-        
+
+        self.lock = threading.Lock()
+
         if not os.path.exists(self.output_dir):
             os.makedirs(self.output_dir)
-            
+
         self._open_new_file()
 
     def _open_new_file(self):
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = f"{timestamp}_flow_data_{self.file_index}.csv"
         self.current_filepath = os.path.join(self.output_dir, filename)
-        
+
         self.current_file = open(self.current_filepath, "a", newline="")
         self.writer = csv.writer(self.current_file)
         self.line_count = 0
@@ -60,7 +61,7 @@ class RotatingCSVWriter:
         if self.current_file:
             self.current_file.flush()
             self.current_file.close()
-        
+
         self._open_new_file()
 
     def write(self, data: dict) -> None:
@@ -71,12 +72,12 @@ class RotatingCSVWriter:
 
             self.writer.writerow(list(data.values()))
             self.line_count += 1
-            
+
             if self.line_count >= self.max_rows:
                 self._rotate()
 
     def __del__(self):
-        if hasattr(self, 'lock'):
+        if hasattr(self, "lock"):
             with self.lock:
                 if self.current_file and not self.current_file.closed:
                     self.current_file.close()

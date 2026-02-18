@@ -309,7 +309,7 @@ def main():
                 args.verbose,
             )
         return
-    
+
     if args.input_file and args.input_file.endswith(".pcap"):
         args.output_mode = "pcap"
 

@@ -35,9 +35,6 @@ dev = [
     "types-pyyaml>=6.0.12.20250915",
 ]
 
-[tool.ruff.format]
-exclude = ["cicflowmeter"]
-
 [tool.bandit]
 exclude_dirs = ["src/cicflowmeter", "tests"]
 
