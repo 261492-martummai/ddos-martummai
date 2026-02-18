@@ -15,7 +15,7 @@ class FlowSession(DefaultSession):
     """Creates a list of network flows."""
 
     def __init__(
-        self, output_mode=None, output=None, fields=None, verbose=False, *args, **kwargs
+        self, output_mode=None, output=None, fields=None, verbose=False, rotate_rows=1000000, *args, **kwargs
     ):
         self.flows: dict[tuple, Flow] = {}
         self.verbose = verbose
@@ -24,7 +24,7 @@ class FlowSession(DefaultSession):
         self.output = output
         self.logger = get_logger(self.verbose)
         self.packets_count = 0
-        self.output_writer = output_writer_factory(self.output_mode, self.output)
+        self.output_writer = output_writer_factory(self.output_mode, self.output, rotate_rows=rotate_rows)
 
         # NEW: lock protecting self.flows
         self._lock = threading.Lock()
@@ -124,7 +124,7 @@ class FlowSession(DefaultSession):
             if not flow or (
                 latest_time is not None
                 and latest_time - flow.latest_timestamp < EXPIRED_UPDATE
-                and flow.duration < 90
+                and flow.duration < 10
             ):
                 continue
 
