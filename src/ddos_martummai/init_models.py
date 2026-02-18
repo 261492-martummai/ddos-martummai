@@ -7,6 +7,10 @@ class SystemConfig:
     csv_output_path: str = ""
     test_mode_output_path: str = ""
     log_file_path: str = ""
+    google_drive_upload: bool = False
+    google_drive_folder_id: str = ""
+    token_file_path: str = ""
+    csv_rotation_rows: int = 1000000
 
 
 @dataclass

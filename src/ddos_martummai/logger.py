@@ -1,5 +1,6 @@
 import logging
 import os
+from datetime import datetime
 from logging.handlers import TimedRotatingFileHandler, WatchedFileHandler
 from typing import Union
 
@@ -58,12 +59,16 @@ def get_console_logger(level=logging.INFO):
     return root_logger
 
 
-def attach_file_logging(log_file_path: str):
+def attach_file_logging(log_file_path: str, test_mode: bool = False):
     logger = logging.getLogger("LOGGER")
     try:
         os.makedirs(os.path.dirname(log_file_path), exist_ok=True)
 
         is_prod_log = log_file_path.startswith("/var/log")
+
+        if test_mode:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            log_file_path = log_file_path.replace(".log", f"_test_{timestamp}.log")
 
         file_handler: Union[WatchedFileHandler, TimedRotatingFileHandler]
 
