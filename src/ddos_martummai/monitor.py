@@ -16,13 +16,12 @@ from ddos_martummai.authen import router as auth_router
 
 # ===================== APP SETUP =====================
 app = FastAPI()
+current_dir = Path(__file__).parent.resolve()
 
 # Auth routes: /auth/login, /auth/logout, /auth/me
 app.include_router(auth_router)
 
 current_dir = Path(__file__).parent.resolve()
-
-# Serve static files (but HTML will be served via custom route below)
 app.mount("/static", StaticFiles(directory=current_dir / "static"), name="static")
 
 
