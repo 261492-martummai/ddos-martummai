@@ -21,7 +21,44 @@ app = FastAPI()
 app.include_router(auth_router)
 
 current_dir = Path(__file__).parent.resolve()
+
+# Serve static files (but HTML will be served via custom route below)
 app.mount("/static", StaticFiles(directory=current_dir / "static"), name="static")
+
+
+# ===================== ROOT REDIRECT =====================
+@app.get("/")
+def root():
+    """Redirect root to login page."""
+    return RedirectResponse(url="/login")
+
+
+# ===================== HTML ROUTES WITH NO-CACHE =====================
+@app.get("/login")
+def login_page():
+    """Serve login.html with cache-busting headers."""
+    return FileResponse(
+        current_dir / "static" / "login.html",
+        headers={
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+            "Pragma": "no-cache",
+            "Expires": "0",
+        }
+    )
+
+
+@app.get("/monitor")
+def monitor_page():
+    """Serve index.html with cache-busting headers."""
+    return FileResponse(
+        current_dir / "static" / "index.html",
+        headers={
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+            "Pragma": "no-cache",
+            "Expires": "0",
+        }
+    )
+
 
 # ===================== CONFIGURATION =====================
 BW_WINDOW   = 60   # seconds of bandwidth history
@@ -59,13 +96,21 @@ class TableRow:
 
 
 # ===================== GLOBAL STATE =====================
-bandwidth:      deque[int]       = deque(maxlen=BW_WINDOW)
+bandwidth_tcp:  deque[int]       = deque(maxlen=BW_WINDOW)
+bandwidth_udp:  deque[int]       = deque(maxlen=BW_WINDOW)
+pkt_rate_tcp:   deque[int]       = deque(maxlen=BW_WINDOW)  # packets/sec TCP
+pkt_rate_udp:   deque[int]       = deque(maxlen=BW_WINDOW)  # packets/sec UDP
 bw_labels:      deque[str]       = deque(maxlen=BW_WINDOW)
 ports_counter:  DefaultDict[int, int] = defaultdict(int)
 ports_snapshot: dict[int, int]   = {}
 flows:          dict[tuple, FlowStats] = {}
 table:          deque[TableRow]  = deque(maxlen=20)
 flow_counter:   int              = 0
+
+# Packet counting for rate calculation
+_last_second:   int              = int(time.time())
+_tcp_count_sec: int              = 0
+_udp_count_sec: int              = 0
 
 # Thread lock — capture thread writes, WS handler reads
 _lock = threading.Lock()
@@ -114,7 +159,7 @@ def build_table_row(pkt, dport: int, flow: FlowStats, duration: int, ts: str) ->
 
 # ===================== PACKET HANDLER =====================
 def handle(pkt) -> None:
-    global flow_counter, ports_snapshot
+    global flow_counter, ports_snapshot, _last_second, _tcp_count_sec, _udp_count_sec
 
     if IP not in pkt:
         return
@@ -126,10 +171,36 @@ def handle(pkt) -> None:
     size = len(pkt)
     ts   = time.strftime("%H:%M:%S")
     now  = time.time_ns()
+    current_sec = int(time.time())
 
     with _lock:
-        # --- bandwidth ---
-        bandwidth.append(size)
+        # --- packet rate: count packets per second ---
+        if current_sec != _last_second:
+            # New second started — record last second's counts
+            pkt_rate_tcp.append(_tcp_count_sec)
+            pkt_rate_udp.append(_udp_count_sec)
+            # Reset counters
+            _tcp_count_sec = 0
+            _udp_count_sec = 0
+            _last_second = current_sec
+        
+        # Increment packet counter
+        if proto == "TCP":
+            _tcp_count_sec += 1
+        elif proto == "UDP":
+            _udp_count_sec += 1
+
+        # --- bandwidth: track TCP and UDP separately ---
+        if proto == "TCP":
+            bandwidth_tcp.append(size)
+            bandwidth_udp.append(0)
+        elif proto == "UDP":
+            bandwidth_tcp.append(0)
+            bandwidth_udp.append(size)
+        else:
+            bandwidth_tcp.append(0)
+            bandwidth_udp.append(0)
+        
         bw_labels.append(ts)
 
         # --- ports ---
@@ -174,49 +245,20 @@ async def websocket_endpoint(
         while True:
             with _lock:
                 payload = {
-                    "bandwidth": list(bandwidth),
-                    "bw_labels": list(bw_labels),
-                    "ports":     ports_snapshot,
-                    "table":     [asdict(r) for r in table],
+                    "bandwidth_tcp": list(bandwidth_tcp),
+                    "bandwidth_udp": list(bandwidth_udp),
+                    "pkt_rate_tcp":  list(pkt_rate_tcp),
+                    "pkt_rate_udp":  list(pkt_rate_udp),
+                    "bw_labels":     list(bw_labels),
+                    "ports":         ports_snapshot,
+                    "table":         [asdict(r) for r in table],
                 }
             await websocket.send_json(payload)
             await asyncio.sleep(1)
     except WebSocketDisconnect:
         pass
-    
-
-# ===================== ROOT REDIRECT =====================
-@app.get("/")
-def root():
-    """Redirect root to login page."""
-    return RedirectResponse(url="/login")
 
 
-# ===================== HTML ROUTES WITH NO-CACHE =====================
-@app.get("/login")
-def login_page():
-    """Serve login.html with cache-busting headers."""
-    return FileResponse(
-        current_dir / "static" / "login.html",
-        headers={
-            "Cache-Control": "no-cache, no-store, must-revalidate",
-            "Pragma": "no-cache",
-            "Expires": "0",
-        }
-    )
-
-
-@app.get("/monitor")
-def monitor_page():
-    """Serve index.html with cache-busting headers."""
-    return FileResponse(
-        current_dir / "static" / "index.html",
-        headers={
-            "Cache-Control": "no-cache, no-store, must-revalidate",
-            "Pragma": "no-cache",
-            "Expires": "0",
-        }
-    )
 # ===================== THREAD BOOTSTRAP =====================
 def start() -> None:
     threading.Thread(target=capture, daemon=True).start()
