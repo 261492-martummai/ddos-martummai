@@ -34,7 +34,7 @@ class Reader:
     # ---------- Public API ----------
 
     def start(self, input_file: Optional[Path] = None):
-        logger.info("Reader started")
+        logger.info("Reader Started")
         self.running = True
 
         try:
@@ -47,7 +47,7 @@ class Reader:
             else:
                 raise ValueError(f"Unknown mode: {self.mode}")
         finally:
-            self._shutdown()
+            self._sent_shutdown_signal()
 
     def stop(self):
         logger.info("Stopping Reader...")
@@ -190,11 +190,11 @@ class Reader:
             current_seq += 1
 
     def _wait_for_header(self, file):
-        logger.info("Waiting for CSV headers...")
+        logger.debug("Waiting for feature headers...")
         while self.running:
             line = file.readline()
             if line.strip():
-                logger.info("Headers detected")
+                logger.debug("Headers detected")
                 return line.strip().split(",")
             time.sleep(0.3)
 
@@ -248,7 +248,6 @@ class Reader:
 
     # ---------- Shutdown ----------
 
-    def _shutdown(self):
-        self.stop()
+    def _sent_shutdown_signal(self):
         self.raw_packet_queue.put(None)
         logger.info("Reader stopped")

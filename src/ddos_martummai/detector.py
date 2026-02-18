@@ -30,7 +30,7 @@ class DDoSDetector:
         self.ip_memory = dict[str, dict[str, float]]()
 
     def start(self):
-        logger.info("Detector Start")
+        logger.info("Detector Started")
         while True:
             batch = self.cleaned_packet_queue.get()
 

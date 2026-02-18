@@ -187,7 +187,7 @@ class DDoSPreprocessor:
           - Empty timeout with leftover buffer (flush then keep waiting)
           - Unrecoverable error in _flush_buffer
         """
-        logger.info("Preprocessor started.")
+        logger.info("Preprocessor Started.")
         buffer = []
 
         while True:

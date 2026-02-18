@@ -44,8 +44,7 @@ class Mitigator:
             except Exception as e:
                 logger.error(f"{LOG_ERROR} Error unblocking IP: {e}")
 
-        t = threading.Thread(target=unblock, daemon=True)
-        t.start()
+        threading.Thread(target=unblock, daemon=False).start()
 
     def _is_email_enabled(self) -> bool:
         """Check if email alerting is configured."""
