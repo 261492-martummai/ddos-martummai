@@ -22,9 +22,12 @@ APP_PATHS = get_app_paths()
 
 
 class DDoSConfigLoader:
-    def __init__(self, config_file: Path, override_env: bool = False):
+    def __init__(
+        self, config_file: Path, override_env: bool = False, test_mode: bool = False
+    ):
         self.config_file = config_file
         self.override_env = override_env
+        self.test_mode = test_mode
         self.app_config: AppConfig = AppConfig()
 
     def load(self) -> AppConfig:
@@ -68,12 +71,14 @@ class DDoSConfigLoader:
 
     def _inject_system_paths(self):
         data_dir = APP_PATHS["data_dir"]
-        log = APP_PATHS["log_file"]
+        log_file_path = APP_PATHS["log_file"]
+        token_file_path = APP_PATHS["token_file"]
+
         data_dir.mkdir(exist_ok=True)
-        log.parent.mkdir(parents=True, exist_ok=True)
+        log_file_path.parent.mkdir(parents=True, exist_ok=True)
 
         if not self.app_config.system.csv_output_path:
-            self.app_config.system.csv_output_path = str(data_dir / "flow_logs.csv")
+            self.app_config.system.csv_output_path = str(data_dir)
 
         if not self.app_config.system.test_mode_output_path:
             self.app_config.system.test_mode_output_path = str(
@@ -81,7 +86,10 @@ class DDoSConfigLoader:
             )
 
         if not self.app_config.system.log_file_path:
-            self.app_config.system.log_file_path = str(log)
+            self.app_config.system.log_file_path = str(log_file_path)
+
+        if not self.app_config.system.token_file_path:
+            self.app_config.system.token_file_path = str(token_file_path)
 
     def _check_override_env(self):
         if not self.override_env:
@@ -163,6 +171,6 @@ class DDoSConfigLoader:
     def _setup_logger(self):
         log_path = self.app_config.system.log_file_path
         if log_path:
-            attach_file_logging(log_path)
+            attach_file_logging(log_path, self.test_mode)
         else:
             logger.warning("No log file path configured. Logging to console only.")

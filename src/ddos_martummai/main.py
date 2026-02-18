@@ -107,7 +107,7 @@ def main(config_file, test_mode, file_path, override_env, setup, verbose):
     logger.info("Starting DDoS Martummai Guard System...")
 
     # 1. Load Config First
-    loader = DDoSConfigLoader(config_file, override_env)
+    loader = DDoSConfigLoader(config_file, override_env, test_mode)
     app_config = loader.load()
 
     # 2. Find model and scaler paths relative to this file
@@ -119,13 +119,17 @@ def main(config_file, test_mode, file_path, override_env, setup, verbose):
     logger.info(f"Initializing modules in mode: {mode}")
 
     # 3. Initialize modules and threads
-    reader = Reader(app_config, mode)
+    reader = Reader(config=app_config, mode=mode)
     preprocessor = DDoSPreprocessor(
-        scaler_path,
-        app_config.model.batch_size,
-        reader.get_queue(),
+        scaler_path=scaler_path,
+        batch_size=app_config.model.batch_size,
+        raw_packet_queue=reader.get_queue(),
     )
-    detector = DDoSDetector(model_path, app_config, preprocessor.get_queue())
+    detector = DDoSDetector(
+        model_path=model_path,
+        config=app_config,
+        cleaned_packet_queue=preprocessor.get_queue(),
+    )
 
     if mode == "live":
         t_reader = threading.Thread(target=reader.start)

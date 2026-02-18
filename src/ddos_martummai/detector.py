@@ -1,8 +1,8 @@
 import logging
 import sys
+import time
 from pathlib import Path
 from queue import Queue
-import time
 
 import joblib
 import pandas as pd
@@ -27,10 +27,10 @@ class DDoSDetector:
         self.mitigator = Mitigator(config)
         self.cleaned_packet_queue = cleaned_packet_queue
         self.batch_size = config.model.batch_size
-        self.ip_memory = {}
+        self.ip_memory = dict[str, dict[str, float]]()
 
     def start(self):
-        logger.info("Detector Start")
+        logger.info("Detector Started")
         while True:
             batch = self.cleaned_packet_queue.get()
 
@@ -57,9 +57,8 @@ class DDoSDetector:
             sys.exit(1)
         finally:
             logger.info("Model loaded successfully.")
-            
+
     def _predict_batch(self, batch_df: pd.DataFrame):
-        
         """
         DDoS Detection Strategy (4 Cases)
 
@@ -104,7 +103,7 @@ class DDoSDetector:
 
             # ===============================
             # CASE 4: Big distributed botnet
-            # ===============================            
+            # ===============================
             if global_attack_ratio > 0.7 and unique_ips > total_flows * 0.3:
                 logger.critical("[GLOBAL BOTNET] Distributed DDoS detected")
 
@@ -113,7 +112,7 @@ class DDoSDetector:
 
                 for ip, row in top_ips.iterrows():
                     logger.warning(f"[BOTNET BLOCK] {ip}")
-                    self.mitigator.block_ip(ip)
+                    self.mitigator.block_ip(str(ip))
                 return
 
             # ===============================
@@ -130,15 +129,15 @@ class DDoSDetector:
                 self.ip_memory[ip]["total"] += 1
                 self.ip_memory[ip]["attack"] += int(is_attack)
                 self.ip_memory[ip]["last"] = now
-                
+
             # ===============================
             # CASE 3: Slow distributed attackers
             # ===============================
             SLOW_ATTACKERS = []
-            
+
             for ip, stats in self.ip_memory.items():
                 duration = stats["last"] - stats["first"]
-                if duration < 300:   # must persist at least 5 minutes
+                if duration < 300:  # must persist at least 5 minutes
                     continue
 
                 ratio = stats["attack"] / stats["total"]
@@ -151,30 +150,27 @@ class DDoSDetector:
                     f"[SLOW ATTACK] {ip} "
                     f"total={stats['total']} "
                     f"ratio={ratio:.2f} "
-                    f"duration={int(stats['last']-stats['first'])}s"
+                    f"duration={int(stats['last'] - stats['first'])}s"
                 )
                 self.mitigator.block_ip(ip)
-            
+
             # ===============================
             # CASE 1 & 2: Normal IP detection
             # ===============================
             ip_stats = results.groupby("ip")["is_attack"].agg(["count", "mean"])
-            
+
             MIN_FLOWS = max(10, int(total_flows * 0.02))
             IP_THRESHOLD = 0.6
 
             attackers = ip_stats[
-                (ip_stats["mean"] > IP_THRESHOLD)
-                & (ip_stats["count"] >= MIN_FLOWS)
+                (ip_stats["mean"] > IP_THRESHOLD) & (ip_stats["count"] >= MIN_FLOWS)
             ]
 
             for ip, row in attackers.iterrows():
                 logger.warning(
-                    f"[IP ATTACK] {ip} "
-                    f"count={row['count']} "
-                    f"ratio={row['mean']:.2f}"
+                    f"[IP ATTACK] {ip} count={row['count']} ratio={row['mean']:.2f}"
                 )
-                self.mitigator.block_ip(ip)
+                self.mitigator.block_ip(str(ip))
 
             logger.info(
                 f"[SUMMARY] attackers={len(attackers)} slow_attackers={len(SLOW_ATTACKERS)}"

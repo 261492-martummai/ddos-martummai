@@ -44,14 +44,12 @@ class Mitigator:
             except Exception as e:
                 logger.error(f"{LOG_ERROR} Error unblocking IP: {e}")
 
-        t = threading.Thread(target=unblock, daemon=True)
-        t.start()
+        threading.Thread(target=unblock, daemon=False).start()
 
     def _is_email_enabled(self) -> bool:
         """Check if email alerting is configured."""
         return bool(
-            self.config.mitigation.admin_email
-            and self.config.mitigation.smtp_user
+            self.config.mitigation.admin_email and self.config.mitigation.smtp_user
         )
 
     def _create_smtp_connection(self):
@@ -120,6 +118,7 @@ class Mitigator:
 
     def _send_email_async(self, msg: MIMEText) -> None:
         """Send email asynchronously."""
+
         def send_async() -> None:
             try:
                 with self._create_smtp_connection() as server:

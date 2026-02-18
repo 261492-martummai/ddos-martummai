@@ -5,7 +5,6 @@ description = "DDoS Detection System Service"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
-    "cicflowmeter @ git+https://github.com/hieulw/cicflowmeter.git@master",
     "click>=8.3.1",
     "click-option-group>=0.5.9",
     "joblib>=1.5.3",
@@ -16,6 +15,12 @@ dependencies = [
     "rich>=14.2.0",
     "scikit-learn>=1.8.0",
     "xgboost>=3.2.0",
+    "numpy>=1.26.2",
+    "scipy>=1.11.4",
+    "scapy>=2.5.0",
+    "requests>=2.31.0",
+    "google-api-python-client>=2.190.0",
+    "google-auth-oauthlib>=1.2.4",
 ]
 
 [dependency-groups]
@@ -31,7 +36,7 @@ dev = [
 ]
 
 [tool.bandit]
-exclude_dirs = ["tests"]
+exclude_dirs = ["src/cicflowmeter", "tests"]
 
 [tool.mypy]
 warn_return_any = true
@@ -40,12 +45,19 @@ ignore_missing_imports = true
 disallow_untyped_defs = false
 allow_redefinition = true
 
+[[tool.mypy.overrides]]
+module = [
+    "cicflowmeter.*"
+]
+ignore_errors = true
+
 [tool.coverage.run]
 source = ["src"]
 branch = true
 omit = [
     "tests/*",
-    "**/__init__.py"
+    "**/__init__.py",
+    "src/cicflowmeter/*"
 ]
 
 [tool.coverage.report]
@@ -60,6 +72,7 @@ exclude_lines = [
 
 [project.scripts]
 ddos-martummai = "ddos_martummai.main:main"
+cicflowmeter = "cicflowmeter.sniffer:main"
 checker = "checker_scripts:run_checks"
 
 [build-system]
@@ -69,8 +82,8 @@ build-backend = "hatchling.build"
 [tool.hatch.metadata]
 allow-direct-references = true
 
-[tool.hatch.build.targets.wheel]
-packages = ["src/ddos_martummai"]
+[tool.hatch.build]
+sources = ["src"]
 
 [tool.hatch.build.targets.sdist]
 include = [
