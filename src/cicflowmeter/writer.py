@@ -71,6 +71,7 @@ class RotatingCSVWriter(OutputWriter):
                 self.header_written = True
 
             self.writer.writerow(list(data.values()))
+            self.current_file.flush()
             self.line_count += 1
 
             if self.line_count >= self.max_rows:
