@@ -30,7 +30,7 @@ class CSVWriter(OutputWriter):
         self.file.close()
 
 
-class RotatingCSVWriter:
+class RotatingCSVWriter(OutputWriter):
     def __init__(self, output_dir, max_rows=1000) -> None:
         self.output_dir = output_dir
         self.max_rows = max_rows
