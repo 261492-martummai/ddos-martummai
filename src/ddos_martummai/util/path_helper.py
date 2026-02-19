@@ -1,4 +1,3 @@
-import os
 import sys
 from pathlib import Path
 from typing import Dict
@@ -7,8 +6,10 @@ APP_NAME = "ddos-martummai"
 
 
 def get_app_paths() -> Dict[str, Path]:
-    env = os.getenv("APP_ENV", "development")
-    is_linux_prod = sys.platform == "linux" and env == "production"
+    current_file_path = Path(__file__).resolve()
+    is_linux_prod = (
+        sys.platform == "linux" and f"/opt/{APP_NAME}" in current_file_path.as_posix()
+    )
 
     if is_linux_prod:
         # "mode": "production"
