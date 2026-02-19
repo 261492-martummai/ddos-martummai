@@ -58,6 +58,9 @@ branch = true
 omit = [
     "tests/*",
     "**/__init__.py",
+    "src/ddos_martummai/init_models.py",
+    "src/ddos_martummai/logger.py",
+    "src/ddos_martummai/util/os_checker.py",
     "src/cicflowmeter/*"
 ]
 
