@@ -116,7 +116,7 @@ def process_batch(
             batch = handle_infinite_values(batch)
             batch = scale_features(batch, scaler)
 
-            batch.insert(0, "src_ip", src_ip_df.reset_index(drop=True)["src_ip"])
+            batch.insert(0, "src_ip", src_ip_df["src_ip"])
             processed_batches.append(batch)
 
             total_rows += len(batch)

@@ -60,7 +60,7 @@ class Reader:
 
     def _run_live(self):
         data_path = Path(self.config.system.csv_output_path)
-        self._prepare_csv(data_path)
+        self._prepare_csv_output(data_path)
         self._prepare_uploader()
         self._start_cicflowmeter_live()
         self._stream_csv()
@@ -85,9 +85,6 @@ class Reader:
             "-i", self.config.system.interface, self.cic_output_dir
         )
 
-        if self.config.system.csv_rotation_rows:
-            cmd.extend(["--rotate-rows", str(self.config.system.csv_rotation_rows)])
-
         self.cic_process = subprocess.Popen(cmd)  # nosec B603
         logger.info("CICFlowMeter started")
 
@@ -105,11 +102,17 @@ class Reader:
 
     def _build_cic_cmd(self, flag, source, output):
         cic_exec = os.path.join(os.path.dirname(sys.executable), "cicflowmeter")
-        return [cic_exec, flag, str(source), "-c", str(output)]
+
+        cmd = [cic_exec, flag, str(source), "-c", str(output)]
+
+        if self.mode == "live" and self.config.system.csv_rotation_rows:
+            cmd.extend(["--rotate-rows", str(self.config.system.csv_rotation_rows)])
+
+        return cmd
 
     # ---------- CSV Handling ----------
 
-    def _prepare_csv(self, data_path: Path):
+    def _prepare_csv_output(self, data_path: Path):
         data_path.mkdir(exist_ok=True)
 
         cic_out = data_path / "cic"

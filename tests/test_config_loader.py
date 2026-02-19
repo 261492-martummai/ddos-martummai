@@ -34,6 +34,10 @@ def mock_app_config():
             csv_output_path="/tmp/test.csv",
             test_mode_output_path="/tmp/test_result.csv",
             log_file_path="/tmp/test.log",
+            google_drive_upload=True,
+            google_drive_folder_id="folder123",
+            token_file_path="/tmp/token.json",
+            csv_rotation_rows=500000,
         ),
         model=ModelConfig(batch_size=1000),
         mitigation=MitigationConfig(
@@ -123,9 +127,7 @@ def test_inject_system_paths_when_config_empty(mock_config_file, tmp_path):
         assert data_dir.exists()
         assert log_file.parent.exists()
 
-        assert loader.app_config.system.csv_output_path == str(
-            data_dir / "flow_logs.csv"
-        )
+        assert loader.app_config.system.csv_output_path == str(data_dir)
         assert loader.app_config.system.test_mode_output_path == str(
             data_dir / "test_results.csv"
         )
@@ -137,6 +139,8 @@ def test_inject_system_paths_when_config_exist(mock_config_file, tmp_path):
     data.system.csv_output_path = "/custom/data.csv"
     data.system.test_mode_output_path = "/custom/test.csv"
     data.system.log_file_path = "/custom/app.log"
+    data.system.token_file_path = "/custom/token.json"
+    data.system.google_drive_folder_id = "abcdefg111"
 
     data_dir = tmp_path / "data"
     log_file = tmp_path / "logs" / "app.log"
@@ -271,7 +275,9 @@ def test_setup_logger_called(mock_config_file, mock_app_config):
 
     with patch("ddos_martummai.config_loader.attach_file_logging") as mock_logger:
         loader._setup_logger()
-        mock_logger.assert_called_once_with(loader.app_config.system.log_file_path)
+        mock_logger.assert_called_once_with(
+            loader.app_config.system.log_file_path, loader.test_mode
+        )
 
 
 def test_setup_logger_not_called_when_no_log_path(mock_config_file, mock_app_config):
@@ -302,8 +308,10 @@ def test_config_loader_successful_full_flow(tmp_path, monkeypatch):
 
     # 1.1 Prepare mock paths using tmp_path
     mock_config_file = tmp_path / "config.yml"
-    mock_data_dir = tmp_path / "data"
+    mock_data_dir = tmp_path / "output"
     mock_log_file = tmp_path / "logs" / "system.log"
+    mock_test_mode_output_path = tmp_path / "output" / "test_results.csv"
+    mock_token_file = tmp_path / "token.json"
 
     # 1.2 Prepare the initial YAML file
     # Note:
@@ -334,7 +342,12 @@ def test_config_loader_successful_full_flow(tmp_path, monkeypatch):
     with (
         patch.dict(
             "ddos_martummai.config_loader.APP_PATHS",
-            {"data_dir": mock_data_dir, "log_file": mock_log_file},
+            {
+                "data_dir": mock_data_dir,
+                "log_file": mock_log_file,
+                "test_mode_output_path": mock_test_mode_output_path,
+                "token_file": mock_token_file,
+            },
         ),
         patch("ddos_martummai.config_loader.attach_file_logging") as mock_logger_setup,
     ):
@@ -342,7 +355,6 @@ def test_config_loader_successful_full_flow(tmp_path, monkeypatch):
         loader = DDoSConfigLoader(mock_config_file, override_env=True)
 
         # Execute the main loading process
-        # (Assuming you have refactored the logic into a .load() method)
         config = loader.load()
 
         # --- 3. ASSERT ---
@@ -357,8 +369,14 @@ def test_config_loader_successful_full_flow(tmp_path, monkeypatch):
 
         # 3.3 Verify that Path Injection logic works correctly
         # The system should auto-populate paths based on the injected 'data_dir'
-        expected_csv_path = str(mock_data_dir / "flow_logs.csv")
+        expected_csv_path = str(mock_data_dir)
+        expected_test_mode_path = str(mock_test_mode_output_path)
+        expected_log_path = str(mock_log_file)
+        expected_token_path = str(mock_token_file)
         assert config.system.csv_output_path == expected_csv_path
+        assert config.system.test_mode_output_path == expected_test_mode_path
+        assert config.system.log_file_path == expected_log_path
+        assert config.system.token_file_path == expected_token_path
 
         # Verify that actual directories were created
         assert mock_data_dir.exists()
@@ -366,7 +384,9 @@ def test_config_loader_successful_full_flow(tmp_path, monkeypatch):
 
         # 3.4 Verify Side Effects (Logger setup was called)
         # Should be called with the resolved log path from APP_PATHS
-        mock_logger_setup.assert_called_once_with(str(mock_log_file))
+        mock_logger_setup.assert_called_once_with(
+            expected_log_path, False
+        )  # Assuming test_mode=False for this test
 
         # 3.5 Verify internal state consistency
         assert loader.config_file == mock_config_file
