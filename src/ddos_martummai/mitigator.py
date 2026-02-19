@@ -171,11 +171,11 @@ class Mitigator:
             return
 
         logger.info(f"{LOG_MITIGATION} Blocking IP: {ip_address}")
-        try:
-            # Check if rule exists to avoid duplicates
-            if not self._iptables_rule_exists(ip_address):
-                self._iptables_add_rule(ip_address)
-                self._schedule_unblock(ip_address)
-        except FileNotFoundError:
-            # Already logged in _iptables_rule_exists
-            pass
+        # try:
+        #     # Check if rule exists to avoid duplicates
+        #     if not self._iptables_rule_exists(ip_address):
+        #         self._iptables_add_rule(ip_address)
+        #         self._schedule_unblock(ip_address)
+        # except FileNotFoundError:
+        #     # Already logged in _iptables_rule_exists
+        #     pass
