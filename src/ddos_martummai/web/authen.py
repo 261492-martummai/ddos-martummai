@@ -8,12 +8,13 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-USERNAME:       str = os.getenv("NM_USERNAME")
-PASSWORD_HASH:  str = os.getenv("NM_PASSWORD_HASH")
+USERNAME: str = os.getenv("NM_USERNAME")
+PASSWORD_HASH: str = os.getenv("NM_PASSWORD_HASH")
 SESSION_SECRET: bytes = os.getenv("NM_SESSION_SECRET").encode()
-SESSION_TTL:    int   = int(os.getenv("NM_SESSION_TTL"))
+SESSION_TTL: int = int(os.getenv("NM_SESSION_TTL"))
 
 sessions: dict[str, float] = {}
+
 
 def _hash_password(password: str) -> str:
     """SHA-256 hash a password string."""
@@ -27,7 +28,7 @@ def _generate_token() -> str:
 
 def _create_session() -> tuple[str, float]:
     """Create a new session and return (token, expires_at)."""
-    token      = _generate_token()
+    token = _generate_token()
     expires_at = time.time() + SESSION_TTL
     sessions[token] = expires_at
     return token, expires_at
@@ -41,7 +42,7 @@ def _validate_session(token: Optional[str]) -> bool:
     if expires_at is None:
         return False
     if time.time() > expires_at:
-        sessions.pop(token, None)   # clean up expired session
+        sessions.pop(token, None)  # clean up expired session
         return False
     return True
 

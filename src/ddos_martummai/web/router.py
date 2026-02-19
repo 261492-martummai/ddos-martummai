@@ -20,6 +20,7 @@ from ddos_martummai.web.authen import (
 router = APIRouter()
 current_dir = Path(__file__).parent.resolve()
 
+
 # ===================== PAGE ROUTES =====================
 @router.get("/")
 def root():

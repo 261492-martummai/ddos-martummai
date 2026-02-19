@@ -21,27 +21,28 @@ app.mount("/static", StaticFiles(directory=current_dir / "static"), name="static
 app.include_router(router)
 
 # ===================== CONFIGURATION =====================
-BW_WINDOW   = 60   # seconds of bandwidth history
-FLOW_WINDOW = 10   # flows before resetting port counters
+BW_WINDOW = 60  # seconds of bandwidth history
+FLOW_WINDOW = 10  # flows before resetting port counters
 
 _lock = threading.Lock()
 
 # ===================== GLOBAL STATE =====================
-bandwidth_tcp:  deque[int]       = deque(maxlen=BW_WINDOW)
-bandwidth_udp:  deque[int]       = deque(maxlen=BW_WINDOW)
-pkt_rate_tcp:   deque[int]       = deque(maxlen=BW_WINDOW)  # packets/sec TCP
-pkt_rate_udp:   deque[int]       = deque(maxlen=BW_WINDOW)  # packets/sec UDP
-bw_labels:      deque[str]       = deque(maxlen=BW_WINDOW)
-ports_counter:  DefaultDict[int, int] = defaultdict(int)
-ports_snapshot: dict[int, int]   = {}
-flows:          dict[tuple, FlowStats] = {}
-table:          deque[TableRow]  = deque(maxlen=20)
-flow_counter:   int              = 0
+bandwidth_tcp: deque[int] = deque(maxlen=BW_WINDOW)
+bandwidth_udp: deque[int] = deque(maxlen=BW_WINDOW)
+pkt_rate_tcp: deque[int] = deque(maxlen=BW_WINDOW)  # packets/sec TCP
+pkt_rate_udp: deque[int] = deque(maxlen=BW_WINDOW)  # packets/sec UDP
+bw_labels: deque[str] = deque(maxlen=BW_WINDOW)
+ports_counter: DefaultDict[int, int] = defaultdict(int)
+ports_snapshot: dict[int, int] = {}
+flows: dict[tuple, FlowStats] = {}
+table: deque[TableRow] = deque(maxlen=20)
+flow_counter: int = 0
 
 # Packet counting for rate calculation
-_last_second:   int              = int(time.time())
-_tcp_count_sec: int              = 0
-_udp_count_sec: int              = 0
+_last_second: int = int(time.time())
+_tcp_count_sec: int = 0
+_udp_count_sec: int = 0
+
 
 def extract_transport(pkt) -> tuple[str | None, int | None, str]:
     """Return (proto, dport, flags) from a scapy packet."""
@@ -55,7 +56,7 @@ def extract_transport(pkt) -> tuple[str | None, int | None, str]:
 def update_flow(flow: FlowStats, size: int, proto: str, flags: str, now: int) -> int:
     """Mutate flow in-place and return duration."""
     flow.packets += 1
-    flow.bytes   += size
+    flow.bytes += size
     if proto == "TCP":
         flow.syn += int("S" in flags)
         flow.ack += int("A" in flags)
@@ -65,7 +66,9 @@ def update_flow(flow: FlowStats, size: int, proto: str, flags: str, now: int) ->
     return now - flow.start
 
 
-def build_table_row(pkt, dport: int, flow: FlowStats, duration: int, ts: str) -> TableRow:
+def build_table_row(
+    pkt, dport: int, flow: FlowStats, duration: int, ts: str
+) -> TableRow:
     return TableRow(
         time=ts,
         src=pkt[IP].src,
@@ -95,8 +98,8 @@ def handle(pkt) -> None:
         return
 
     size = len(pkt)
-    ts   = time.strftime("%H:%M:%S")
-    now  = time.time_ns()
+    ts = time.strftime("%H:%M:%S")
+    now = time.time_ns()
     current_sec = int(time.time())
 
     with _lock:
@@ -109,7 +112,7 @@ def handle(pkt) -> None:
             _tcp_count_sec = 0
             _udp_count_sec = 0
             _last_second = current_sec
-        
+
         # Increment packet counter
         if proto == "TCP":
             _tcp_count_sec += 1
@@ -126,14 +129,14 @@ def handle(pkt) -> None:
         else:
             bandwidth_tcp.append(0)
             bandwidth_udp.append(0)
-        
+
         bw_labels.append(ts)
 
         # --- ports ---
         ports_counter[dport] += 1
         flow_counter += 1
         if flow_counter >= FLOW_WINDOW:
-            ports_snapshot  = dict(ports_counter)
+            ports_snapshot = dict(ports_counter)
             ports_counter.clear()
             flow_counter = 0
         else:
@@ -144,9 +147,9 @@ def handle(pkt) -> None:
         if key not in flows:
             flows[key] = FlowStats(start=now)
 
-        flow     = flows[key]
+        flow = flows[key]
         duration = update_flow(flow, size, proto, flags, now)
-        row      = build_table_row(pkt, dport, flow, duration, ts)
+        row = build_table_row(pkt, dport, flow, duration, ts)
         table.appendleft(row)
 
 
@@ -154,10 +157,11 @@ def handle(pkt) -> None:
 def capture() -> None:
     sniff(prn=handle, store=0)
 
+
 # ===================== THREAD BOOTSTRAP =====================
 def start() -> None:
     threading.Thread(target=capture, daemon=True).start()
-    
+
 
 # ===================== WEBSOCKET API =====================
 @app.websocket("/ws")
@@ -177,11 +181,11 @@ async def websocket_endpoint(
                 payload = {
                     "bandwidth_tcp": list(bandwidth_tcp),
                     "bandwidth_udp": list(bandwidth_udp),
-                    "pkt_rate_tcp":  list(pkt_rate_tcp),
-                    "pkt_rate_udp":  list(pkt_rate_udp),
-                    "bw_labels":     list(bw_labels),
-                    "ports":         ports_snapshot,
-                    "table":         [asdict(r) for r in table],
+                    "pkt_rate_tcp": list(pkt_rate_tcp),
+                    "pkt_rate_udp": list(pkt_rate_udp),
+                    "bw_labels": list(bw_labels),
+                    "ports": ports_snapshot,
+                    "table": [asdict(r) for r in table],
                 }
             await websocket.send_json(payload)
             await asyncio.sleep(1)
