@@ -9,11 +9,9 @@ import pandas as pd
 
 from ddos_martummai.init_models import AppConfig
 from ddos_martummai.mitigation import Mitigator
+from ddos_martummai.util.constant import IP_COLUMN_NAME
 
 logger = logging.getLogger("DETECTOR")
-
-IP_COLUMN_NAME = "src_ip"
-
 
 class DDoSDetector:
     def __init__(

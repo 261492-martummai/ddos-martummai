@@ -2,97 +2,29 @@ import asyncio
 import threading
 import time
 from collections import defaultdict, deque
-from dataclasses import asdict, dataclass
+from dataclasses import asdict
 from pathlib import Path
 from typing import DefaultDict, Optional
 
 from fastapi import Cookie, FastAPI, WebSocket, WebSocketDisconnect, status
-from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from scapy.all import IP, TCP, UDP, sniff
 
-from ddos_martummai.authen import _validate_session
-from ddos_martummai.authen import router as auth_router
+from ddos_martummai.init_models import FlowStats, TableRow
+from ddos_martummai.web.authen import _validate_session
+from ddos_martummai.web.router import router
 
-# ===================== APP SETUP =====================
 app = FastAPI()
-current_dir = Path(__file__).parent.resolve()
-
-# Auth routes: /auth/login, /auth/logout, /auth/me
-app.include_router(auth_router)
-
 current_dir = Path(__file__).parent.resolve()
 app.mount("/static", StaticFiles(directory=current_dir / "static"), name="static")
 
-
-# ===================== ROOT REDIRECT =====================
-@app.get("/")
-def root():
-    """Redirect root to login page."""
-    return RedirectResponse(url="/login")
-
-
-# ===================== HTML ROUTES WITH NO-CACHE =====================
-@app.get("/login")
-def login_page():
-    """Serve login.html with cache-busting headers."""
-    return FileResponse(
-        current_dir / "static" / "login.html",
-        headers={
-            "Cache-Control": "no-cache, no-store, must-revalidate",
-            "Pragma": "no-cache",
-            "Expires": "0",
-        }
-    )
-
-
-@app.get("/monitor")
-def monitor_page():
-    """Serve index.html with cache-busting headers."""
-    return FileResponse(
-        current_dir / "static" / "index.html",
-        headers={
-            "Cache-Control": "no-cache, no-store, must-revalidate",
-            "Pragma": "no-cache",
-            "Expires": "0",
-        }
-    )
-
+app.include_router(router)
 
 # ===================== CONFIGURATION =====================
 BW_WINDOW   = 60   # seconds of bandwidth history
 FLOW_WINDOW = 10   # flows before resetting port counters
 
-
-# ===================== DATA CLASSES =====================
-@dataclass
-class FlowStats:
-    start:   int = 0
-    packets: int = 0
-    bytes:   int = 0
-    syn:     int = 0
-    ack:     int = 0
-    psh:     int = 0
-    rst:     int = 0
-    fin:     int = 0
-
-
-@dataclass
-class TableRow:
-    time:     str
-    src:      str
-    dst:      str
-    port:     int
-    packets:  int
-    bytes:    int
-    syn:      int
-    ack:      int
-    psh:      int
-    rst:      int
-    fin:      int
-    start:    int
-    duration: int
-
+_lock = threading.Lock()
 
 # ===================== GLOBAL STATE =====================
 bandwidth_tcp:  deque[int]       = deque(maxlen=BW_WINDOW)
@@ -111,11 +43,6 @@ _last_second:   int              = int(time.time())
 _tcp_count_sec: int              = 0
 _udp_count_sec: int              = 0
 
-# Thread lock — capture thread writes, WS handler reads
-_lock = threading.Lock()
-
-
-# ===================== PURE HELPERS =====================
 def extract_transport(pkt) -> tuple[str | None, int | None, str]:
     """Return (proto, dport, flags) from a scapy packet."""
     if TCP in pkt:
@@ -227,6 +154,10 @@ def handle(pkt) -> None:
 def capture() -> None:
     sniff(prn=handle, store=0)
 
+# ===================== THREAD BOOTSTRAP =====================
+def start() -> None:
+    threading.Thread(target=capture, daemon=True).start()
+    
 
 # ===================== WEBSOCKET API =====================
 @app.websocket("/ws")
@@ -256,8 +187,3 @@ async def websocket_endpoint(
             await asyncio.sleep(1)
     except WebSocketDisconnect:
         pass
-
-
-# ===================== THREAD BOOTSTRAP =====================
-def start() -> None:
-    threading.Thread(target=capture, daemon=True).start()

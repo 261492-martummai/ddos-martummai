@@ -78,5 +78,5 @@ packages = ["src/ddos_martummai"]
 
 [tool.hatch.build.targets.sdist]
 include = [
-    "src/ddos_martummai/models/*.joblib"
+    "src/ddos_martummai/ml/*.joblib"
 ]
