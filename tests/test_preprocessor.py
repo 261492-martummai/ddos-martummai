@@ -45,7 +45,7 @@ def dummy_scaler_path(tmp_path):
 @pytest.fixture
 def real_scaler_path():
     root_dir = Path(__file__).parent.parent
-    scaler_file = root_dir / "src" / "ddos_martummai" / "models" / "scaler.joblib"
+    scaler_file = root_dir / "src" / "ddos_martummai" / "ml" / "scaler.joblib"
 
     if not scaler_file.exists():
         pytest.fail(f"Real scaler.joblib not found at {scaler_file}")

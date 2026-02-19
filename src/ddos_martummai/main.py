@@ -12,6 +12,7 @@ from ddos_martummai.config_loader import DDoSConfigLoader
 from ddos_martummai.detector import DDoSDetector
 from ddos_martummai.init_models import AppConfig
 from ddos_martummai.logger import get_console_logger
+from ddos_martummai.logger import setup_uvicorn_logging as uvicorn_log
 from ddos_martummai.preprocessor import DDoSPreprocessor
 from ddos_martummai.reader import Reader
 from ddos_martummai.setup_wizard import SetupWizard
@@ -125,7 +126,9 @@ def main(config_file, test_mode, file_path, override_env, setup, verbose):
     reader = Reader(config=app_config, mode=mode)
 
     t_web = threading.Thread(
-        target=lambda: uvicorn.run(app, host="localhost", port=8000),
+        target=lambda: uvicorn.run(
+            app, host="localhost", port=8000, log_config=uvicorn_log()
+        ),
         daemon=True,
     )
     t_web.start()
