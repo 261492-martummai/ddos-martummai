@@ -51,7 +51,7 @@ jobs:
           uv sync
 
       - name: Run Pytest
-        run: uv run pytest --cov tests/
+        run: uv run pytest --cov=ddos_martummai --cov-report=term-missing tests/ -v
 
   build-package:
     name: Build .deb Package
