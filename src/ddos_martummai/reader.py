@@ -176,7 +176,8 @@ class Reader:
                 time.sleep(0.5)
                 continue
 
-            logger.info(f"Processing file: {csv_path.name}")
+            logger.debug(f"Processing file: {csv_path.name}")
+            logger.info("Waiting for network flow data...")
 
             with open(csv_path, "r") as f:
                 headers = self._wait_for_header(f)
