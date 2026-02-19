@@ -5,6 +5,7 @@ import time
 from pathlib import Path
 
 import click
+import uvicorn
 from click_option_group import optgroup
 
 from ddos_martummai.config_loader import DDoSConfigLoader
@@ -17,6 +18,8 @@ from ddos_martummai.setup_wizard import SetupWizard
 from ddos_martummai.util.constant import CONTEXT_SETTINGS
 from ddos_martummai.util.os_checker import is_root_privileged
 from ddos_martummai.util.path_helper import get_app_paths
+from ddos_martummai.web import monitor
+from ddos_martummai.web.monitor import app
 
 APP_PATHS = get_app_paths()
 
@@ -112,14 +115,22 @@ def main(config_file, test_mode, file_path, override_env, setup, verbose):
 
     # 2. Find model and scaler paths relative to this file
     current_dir = Path(__file__).parent.resolve()
-    model_dir = current_dir / "models"
-    model_path = model_dir / "model.joblib"
-    scaler_path = model_dir / "scaler.joblib"
+    ml_dir = current_dir / "ml"
+    model_path = ml_dir / "model.joblib"
+    scaler_path = ml_dir / "scaler.joblib"
 
     logger.info(f"Initializing modules in mode: {mode}")
 
     # 3. Initialize modules and threads
     reader = Reader(config=app_config, mode=mode)
+
+    t_web = threading.Thread(
+        target=lambda: uvicorn.run(app, host="localhost", port=8000),
+        daemon=True,
+    )
+    t_web.start()
+    monitor.start()
+
     preprocessor = DDoSPreprocessor(
         scaler_path=scaler_path,
         batch_size=app_config.model.batch_size,

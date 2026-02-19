@@ -1,5 +1,7 @@
 from dataclasses import dataclass, field
 
+from pydantic import BaseModel
+
 
 @dataclass
 class SystemConfig:
@@ -34,3 +36,37 @@ class AppConfig:
     system: SystemConfig = field(default_factory=SystemConfig)
     model: ModelConfig = field(default_factory=ModelConfig)
     mitigation: MitigationConfig = field(default_factory=MitigationConfig)
+    
+# Monior
+@dataclass
+class FlowStats:
+    start:   int = 0
+    packets: int = 0
+    bytes:   int = 0
+    syn:     int = 0
+    ack:     int = 0
+    psh:     int = 0
+    rst:     int = 0
+    fin:     int = 0
+
+
+@dataclass
+class TableRow:
+    time:     str
+    src:      str
+    dst:      str
+    port:     int
+    packets:  int
+    bytes:    int
+    syn:      int
+    ack:      int
+    psh:      int
+    rst:      int
+    fin:      int
+    start:    int
+    duration: int
+    
+@dataclass
+class LoginRequest(BaseModel):
+    username: str
+    password: str

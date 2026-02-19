@@ -7,13 +7,17 @@ requires-python = ">=3.13"
 dependencies = [
     "click>=8.3.1",
     "click-option-group>=0.5.9",
+    "fastapi>=0.129.0",
     "joblib>=1.5.3",
     "pandas>=3.0.0",
     "psutil>=7.2.1",
+    "python-dotenv>=1.2.1",
     "pyyaml>=6.0.3",
     "questionary>=2.1.1",
     "rich>=14.2.0",
     "scikit-learn>=1.8.0",
+    "uvicorn>=0.40.0",
+    "websockets>=16.0",
     "xgboost>=3.2.0",
     "numpy>=1.26.2",
     "scipy>=1.11.4",
@@ -91,5 +95,5 @@ sources = ["src"]
 
 [tool.hatch.build.targets.sdist]
 include = [
-    "src/ddos_martummai/models/*.joblib"
+    "src/ddos_martummai/ml/*.joblib"
 ]
