@@ -89,7 +89,7 @@ class Mitigator:
                 interface_ips = [addr.address for addr in addrs[target_interface]]
 
                 if ip_address in interface_ips:
-                    logger.warning(
+                    logger.debug(
                         f"Blocking skipped: IP {ip_address} matches system interface {target_interface}"
                     )
                     return False
@@ -170,10 +170,11 @@ class Mitigator:
         if not self._valid_ip(ip_address):
             return
 
-        logger.info(f"{LOG_MITIGATION} Blocking IP: {ip_address}")
+        logger.debug(f"{LOG_MITIGATION} Blocking IP: {ip_address}")
         # try:
         #     # Check if rule exists to avoid duplicates
         #     if not self._iptables_rule_exists(ip_address):
+        #         logger.info(f"{LOG_MITIGATION} Blocking IP: {ip_address}")
         #         self._iptables_add_rule(ip_address)
         #         self._schedule_unblock(ip_address)
         # except FileNotFoundError:

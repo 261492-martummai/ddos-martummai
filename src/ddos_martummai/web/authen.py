@@ -8,10 +8,10 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-USERNAME: str = os.getenv("NM_USERNAME")
-PASSWORD_HASH: str = os.getenv("NM_PASSWORD_HASH")
-SESSION_SECRET: bytes = os.getenv("NM_SESSION_SECRET").encode()
-SESSION_TTL: int = int(os.getenv("NM_SESSION_TTL"))
+USERNAME: str = os.getenv("NM_USERNAME", "")
+PASSWORD_HASH: str = os.getenv("NM_PASSWORD_HASH", "")
+SESSION_SECRET: bytes = os.getenv("NM_SESSION_SECRET", "dev").encode()
+SESSION_TTL: int = int(os.getenv("NM_SESSION_TTL", "600"))
 
 sessions: dict[str, float] = {}
 

@@ -8,7 +8,7 @@ from typing import DefaultDict, Optional
 
 from fastapi import Cookie, FastAPI, WebSocket, WebSocketDisconnect, status
 from fastapi.staticfiles import StaticFiles
-from scapy.all import IP, TCP, UDP, sniff
+from scapy.all import IP, TCP, UDP, sniff  # type: ignore
 
 from ddos_martummai.init_models import FlowStats, TableRow
 from ddos_martummai.web.authen import _validate_session
@@ -94,7 +94,7 @@ def handle(pkt) -> None:
         return
 
     proto, dport, flags = extract_transport(pkt)
-    if dport is None:
+    if dport is None or proto is None:
         return
 
     size = len(pkt)

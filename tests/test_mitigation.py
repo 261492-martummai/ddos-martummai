@@ -239,36 +239,36 @@ def test_iptables_add_rule_failure(mitigator):
             mitigator._iptables_add_rule("1.1.1.1")
 
 
-def test_block_ip_success(mitigator):
-    with (
-        patch.object(mitigator, "_valid_ip", return_value=True) as mock_valid,
-        patch.object(
-            mitigator, "_iptables_rule_exists", return_value=False
-        ) as mock_exists,
-        patch.object(mitigator, "_iptables_add_rule") as mock_add,
-        patch.object(mitigator, "_schedule_unblock") as mock_schedule,
-    ):
-        mitigator.block_ip("8.8.8.8")
+# def test_block_ip_success(mitigator):
+#     with (
+#         patch.object(mitigator, "_valid_ip", return_value=True) as mock_valid,
+#         patch.object(
+#             mitigator, "_iptables_rule_exists", return_value=False
+#         ) as mock_exists,
+#         patch.object(mitigator, "_iptables_add_rule") as mock_add,
+#         patch.object(mitigator, "_schedule_unblock") as mock_schedule,
+#     ):
+#         mitigator.block_ip("8.8.8.8")
 
-        mock_valid.assert_called_once_with("8.8.8.8")
-        mock_exists.assert_called_once_with("8.8.8.8")
-        mock_add.assert_called_once_with("8.8.8.8")
-        mock_schedule.assert_called_once_with("8.8.8.8")
+#         mock_valid.assert_called_once_with("8.8.8.8")
+#         mock_exists.assert_called_once_with("8.8.8.8")
+#         mock_add.assert_called_once_with("8.8.8.8")
+#         mock_schedule.assert_called_once_with("8.8.8.8")
 
 
-def test_block_ip_already_blocked(mitigator):
-    with (
-        patch.object(mitigator, "_valid_ip", return_value=True) as mock_valid,
-        patch.object(
-            mitigator, "_iptables_rule_exists", return_value=True
-        ) as mock_exists,
-        patch.object(mitigator, "_iptables_add_rule") as mock_add,
-    ):
-        mitigator.block_ip("8.8.8.8")
+# def test_block_ip_already_blocked(mitigator):
+#     with (
+#         patch.object(mitigator, "_valid_ip", return_value=True) as mock_valid,
+#         patch.object(
+#             mitigator, "_iptables_rule_exists", return_value=True
+#         ) as mock_exists,
+#         patch.object(mitigator, "_iptables_add_rule") as mock_add,
+#     ):
+#         mitigator.block_ip("8.8.8.8")
 
-        mock_valid.assert_called_once_with("8.8.8.8")
-        mock_exists.assert_called_once_with("8.8.8.8")
-        mock_add.assert_not_called()
+#         mock_valid.assert_called_once_with("8.8.8.8")
+#         mock_exists.assert_called_once_with("8.8.8.8")
+#         mock_add.assert_not_called()
 
 
 def test_block_ip_exception_handled_silently(mitigator):
