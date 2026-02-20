@@ -127,7 +127,10 @@ def main(config_file, test_mode, file_path, override_env, setup, verbose):
 
     t_web = threading.Thread(
         target=lambda: uvicorn.run(
-            app, host="0.0.0.0", port=8000, log_config=uvicorn_log()
+            app,
+            host="0.0.0.0",  # nosec B104
+            port=8000,
+            log_config=uvicorn_log(),
         ),
         daemon=True,
     )
