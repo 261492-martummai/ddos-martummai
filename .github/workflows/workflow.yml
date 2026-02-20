@@ -72,7 +72,9 @@ jobs:
         run: echo 'deb [trusted=yes] https://repo.goreleaser.com/apt/ /' | sudo tee /etc/apt/sources.list.d/goreleaser.list && sudo apt-get update && sudo apt-get install nfpm
 
       - name: Build .deb
-        run: nfpm package --packager deb --target ddos-martummai_${{ github.ref_name }}_amd64.deb
+        run: |
+          CLEAN_VERSION=${GITHUB_REF_NAME#v}
+          nfpm package --packager deb --target ddos-martummai_${CLEAN_VERSION}_amd64.deb
 
       - name: Create Release
         uses: softprops/action-gh-release@v1
