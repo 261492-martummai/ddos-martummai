@@ -39,7 +39,7 @@ mkdir -p "$CONFIG_DIR"
 
 # 5. Copy Application Files
 echo -e "${GREEN}[*] Copying application files...${NC}"
-# Copy entire src folder (includes models)
+# Copy entire src folder (includes ml)
 cp -r src "$INSTALL_DIR/"
 cp pyproject.toml "$INSTALL_DIR/"
 cp uv.lock "$INSTALL_DIR/" 2>/dev/null || true # Copy lock file if exists

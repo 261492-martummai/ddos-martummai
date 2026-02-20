@@ -8,11 +8,10 @@ import joblib
 import pandas as pd
 
 from ddos_martummai.init_models import AppConfig
-from ddos_martummai.mitigation import Mitigator
+from ddos_martummai.mitigator import Mitigator
+from ddos_martummai.util.constant import IP_COLUMN_NAME
 
 logger = logging.getLogger("DETECTOR")
-
-IP_COLUMN_NAME = "src_ip"
 
 
 class DDoSDetector:
@@ -30,7 +29,7 @@ class DDoSDetector:
         self.ip_memory = dict[str, dict[str, float]]()
 
     def start(self):
-        logger.info("Detector Start")
+        logger.info("Detector Started")
         while True:
             batch = self.cleaned_packet_queue.get()
 

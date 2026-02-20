@@ -56,7 +56,13 @@ def run_checks():
         {
             "name": "UNIT TESTING (Pytest)",
             "commands": [
-                ["pytest", "--cov", "tests/"],
+                [
+                    "pytest",
+                    "--cov=ddos_martummai",
+                    "--cov-report=term-missing",
+                    "tests/",
+                    "-v",
+                ],
             ],
         },
     ]

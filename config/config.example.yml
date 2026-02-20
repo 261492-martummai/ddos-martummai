@@ -3,6 +3,10 @@ system:
   csv_output_path: null
   test_mode_output_path: null
   log_file_path: null
+  google_drive_upload: false
+  google_drive_folder_id: null
+  token_file_path: null
+  csv_rotation_rows: 1000000
 
 model:
   batch_size: 1000

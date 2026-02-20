@@ -2,7 +2,7 @@ import logging
 import os
 import shutil
 import sys
-from dataclasses import fields
+from dataclasses import asdict, fields
 from pathlib import Path
 
 import yaml
@@ -22,11 +22,15 @@ APP_PATHS = get_app_paths()
 
 
 class DDoSConfigLoader:
-    def __init__(self, config_file: Path, override_env: bool = False):
+    def __init__(
+        self, config_file: Path, override_env: bool = False, test_mode: bool = False
+    ):
         self.config_file = config_file
         self.override_env = override_env
+        self.test_mode = test_mode
         self.app_config: AppConfig = AppConfig()
 
+    def load(self) -> AppConfig:
         logger.info("Load Configuration")
 
         self._ensure_config_file_exists()
@@ -37,6 +41,7 @@ class DDoSConfigLoader:
         self._setup_logger()
 
         logger.info("Configuration Loaded Successfully")
+        return self.app_config
 
     def _ensure_config_file_exists(self):
         if self.config_file.exists():
@@ -52,7 +57,7 @@ class DDoSConfigLoader:
         else:
             logger.info("Creating from internal defaults...")
             with open(self.config_file, "w") as f:
-                yaml.dump(AppConfig(), f)
+                yaml.dump(asdict(AppConfig()), f)
 
     def _load_app_config(self):
         with open(self.config_file) as f:
@@ -66,12 +71,14 @@ class DDoSConfigLoader:
 
     def _inject_system_paths(self):
         data_dir = APP_PATHS["data_dir"]
-        log = APP_PATHS["log_file"]
+        log_file_path = APP_PATHS["log_file"]
+        token_file_path = APP_PATHS["token_file"]
+
         data_dir.mkdir(exist_ok=True)
-        log.parent.mkdir(parents=True, exist_ok=True)
+        log_file_path.parent.mkdir(parents=True, exist_ok=True)
 
         if not self.app_config.system.csv_output_path:
-            self.app_config.system.csv_output_path = str(data_dir / "flow_logs.csv")
+            self.app_config.system.csv_output_path = str(data_dir)
 
         if not self.app_config.system.test_mode_output_path:
             self.app_config.system.test_mode_output_path = str(
@@ -79,7 +86,10 @@ class DDoSConfigLoader:
             )
 
         if not self.app_config.system.log_file_path:
-            self.app_config.system.log_file_path = str(log)
+            self.app_config.system.log_file_path = str(log_file_path)
+
+        if not self.app_config.system.token_file_path:
+            self.app_config.system.token_file_path = str(token_file_path)
 
     def _check_override_env(self):
         if not self.override_env:
@@ -126,8 +136,7 @@ class DDoSConfigLoader:
         mit = cfg.mitigation
         if not mit.admin_email:
             errors.append("Admin Email is required")
-
-        if mit.admin_email:
+        else:
             if not mit.smtp_user:
                 errors.append("SMTP User is required")
             if not mit.smtp_password:
@@ -162,6 +171,6 @@ class DDoSConfigLoader:
     def _setup_logger(self):
         log_path = self.app_config.system.log_file_path
         if log_path:
-            attach_file_logging(log_path)
+            attach_file_logging(log_path, self.test_mode)
         else:
             logger.warning("No log file path configured. Logging to console only.")

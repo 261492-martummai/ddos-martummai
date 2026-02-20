@@ -13,6 +13,9 @@ contents:
   - src: ./src/ddos_martummai
     dst: /opt/ddos-martummai/src/ddos_martummai
 
+  - src: ./src/cicflowmeter
+    dst: /opt/ddos-martummai/src/cicflowmeter
+
   - src: ./pyproject.toml
     dst: /opt/ddos-martummai/pyproject.toml
 

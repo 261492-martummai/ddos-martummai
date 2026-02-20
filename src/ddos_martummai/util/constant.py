@@ -1,28 +1,4 @@
-FEATURE_COLUMNS = [
-    "Flow Duration",
-    "Tot Fwd Pkts",
-    "Tot Bwd Pkts",
-    "TotLen Fwd Pkts",
-    "TotLen Bwd Pkts",
-    "Fwd Pkt Len Std",
-    "Bwd Pkt Len Min",
-    "Bwd Pkt Len Std",
-    "Flow IAT Min",
-    "Fwd IAT Tot",
-    "Fwd IAT Min",
-    "Fwd PSH Flags",
-    "Fwd Header Len",
-    "Fwd Pkts/s",
-    "SYN Flag Cnt",
-    "ACK Flag Cnt",
-    "URG Flag Cnt",
-    "CWE Flag Count",
-    "Init Fwd Win Byts",
-    "Fwd Act Data Pkts",
-    "Fwd Seg Size Min",
-    "Active Mean",
-    "Idle Mean",
-]
+IP_COLUMN_NAME = "src_ip"
 
 COLUMN_RENAME_MAP = {
     "flow_duration": "Flow Duration",

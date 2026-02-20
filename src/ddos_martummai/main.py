@@ -5,18 +5,22 @@ import time
 from pathlib import Path
 
 import click
+import uvicorn
 from click_option_group import optgroup
 
 from ddos_martummai.config_loader import DDoSConfigLoader
 from ddos_martummai.detector import DDoSDetector
 from ddos_martummai.init_models import AppConfig
 from ddos_martummai.logger import get_console_logger
+from ddos_martummai.logger import setup_uvicorn_logging as uvicorn_log
 from ddos_martummai.preprocessor import DDoSPreprocessor
 from ddos_martummai.reader import Reader
 from ddos_martummai.setup_wizard import SetupWizard
 from ddos_martummai.util.constant import CONTEXT_SETTINGS
 from ddos_martummai.util.os_checker import is_root_privileged
 from ddos_martummai.util.path_helper import get_app_paths
+from ddos_martummai.web import monitor
+from ddos_martummai.web.monitor import app
 
 APP_PATHS = get_app_paths()
 
@@ -107,25 +111,39 @@ def main(config_file, test_mode, file_path, override_env, setup, verbose):
     logger.info("Starting DDoS Martummai Guard System...")
 
     # 1. Load Config First
-    loader = DDoSConfigLoader(config_file, override_env)
-    app_config = loader.app_config
+    loader = DDoSConfigLoader(config_file, override_env, test_mode)
+    app_config = loader.load()
 
     # 2. Find model and scaler paths relative to this file
     current_dir = Path(__file__).parent.resolve()
-    model_dir = current_dir / "models"
-    model_path = model_dir / "model.joblib"
-    scaler_path = model_dir / "scaler.joblib"
+    ml_dir = current_dir / "ml"
+    model_path = ml_dir / "model.joblib"
+    scaler_path = ml_dir / "scaler.joblib"
 
     logger.info(f"Initializing modules in mode: {mode}")
 
     # 3. Initialize modules and threads
-    reader = Reader(app_config, mode)
-    preprocessor = DDoSPreprocessor(
-        scaler_path,
-        app_config.model.batch_size,
-        reader.get_queue(),
+    reader = Reader(config=app_config, mode=mode)
+
+    t_web = threading.Thread(
+        target=lambda: uvicorn.run(
+            app, host="localhost", port=8000, log_config=uvicorn_log()
+        ),
+        daemon=True,
     )
-    detector = DDoSDetector(model_path, app_config, preprocessor.get_queue())
+    t_web.start()
+    monitor.start()
+
+    preprocessor = DDoSPreprocessor(
+        scaler_path=scaler_path,
+        batch_size=app_config.model.batch_size,
+        raw_packet_queue=reader.get_queue(),
+    )
+    detector = DDoSDetector(
+        model_path=model_path,
+        config=app_config,
+        cleaned_packet_queue=preprocessor.get_queue(),
+    )
 
     if mode == "live":
         t_reader = threading.Thread(target=reader.start)
