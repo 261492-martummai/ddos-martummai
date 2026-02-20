@@ -1,0 +1,134 @@
+name: "Workflow DDoS MarTumMai Guard"
+
+on:
+  push:
+    branches: ["main", "dev"]
+    tags: ["v*"]
+  pull_request:
+    branches: ["main", "dev"]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality-and-security:
+    name: Code Quality & Security Checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync --dev
+
+      - name: Linting
+        run: uv run ruff check .
+
+      - name: Type Checking
+        run: uv run mypy src/
+
+      - name: Security Scan
+        run: uv run bandit -r src/ -c pyproject.toml --exclude tests/
+
+  testing:
+    name: Unit Testing
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync --dev
+
+      - name: Run Pytest & Coverage Summary
+        run: |
+          uv run pytest --cov=ddos_martummai --cov-report=term-missing tests/ -v
+
+          echo "## Test Coverage Report" >> $GITHUB_STEP_SUMMARY
+          uv run coverage report --format=markdown >> $GITHUB_STEP_SUMMARY
+
+  build-package:
+    name: Build .deb Package
+    needs: [quality-and-security, testing]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: Install NFPM
+        run: echo 'deb [trusted=yes] https://repo.goreleaser.com/apt/ /' | sudo tee /etc/apt/sources.list.d/goreleaser.list && sudo apt-get update && sudo apt-get install nfpm
+
+      - name: Build .deb
+        run: nfpm package --packager deb --target ddos-martummai_${{ github.ref_name }}_amd64.deb
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: ddos-martummai_*.deb
+          draft: true
+
+  code-analysis:
+    name: Code Analysis
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Install project dependencies
+        run: uv sync --dev
+
+      - name: Run Radon Report
+        run: |
+          echo "## Radon Complexity Report" >> $GITHUB_STEP_SUMMARY
+
+          echo "### How to read this report" >> $GITHUB_STEP_SUMMARY
+          echo "**1. Block Type:**" >> $GITHUB_STEP_SUMMARY
+          echo "- \`F\` = Function | \`M\` = Method | \`C\` = Class" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**2. Complexity Grade (Score):** *(Higher score = higher complexity)*" >> $GITHUB_STEP_SUMMARY
+          echo "- **A (1-5):** Simple, elegant, and easy to read. (Best)" >> $GITHUB_STEP_SUMMARY
+          echo "- **B (6-10):** Slightly complex, but acceptable." >> $GITHUB_STEP_SUMMARY
+          echo "- **C (11-20):** Moderately complex. Consider splitting into smaller chunks." >> $GITHUB_STEP_SUMMARY
+          echo "- **D (21-30):** Highly complex, hard to read, and prone to bugs." >> $GITHUB_STEP_SUMMARY
+          echo "- **E (31-40):** Overly complex. Needs immediate refactoring." >> $GITHUB_STEP_SUMMARY
+          echo "- **F (41+):** Danger! Spaghetti code. Very hard to test and maintain." >> $GITHUB_STEP_SUMMARY
+          echo "*(Reference: [Radon Cyclomatic Complexity Documentation](https://radon.readthedocs.io/en/latest/api.html#module-radon.complexity))*" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          echo '```text' >> $GITHUB_STEP_SUMMARY
+          uv run radon cc -s src/ddos_martummai/ >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+      - name: Run Lizard Report
+        run: |
+          echo "## Lizard LOC Report" >> $GITHUB_STEP_SUMMARY
+
+          echo "### Project Summary Metrics" >> $GITHUB_STEP_SUMMARY
+          echo "- **Total nloc:** Total meaningful lines of code across the project (ignoring comments and blanks)." >> $GITHUB_STEP_SUMMARY
+          echo "- **Avg.NLOC:** Average length of a function. *(Shorter is better for readability)*." >> $GITHUB_STEP_SUMMARY
+          echo "- **AvgCCN:** Average complexity per function. *(Ideally under 5. Lower means easier to test and maintain)*." >> $GITHUB_STEP_SUMMARY
+          echo "- **Fun Cnt:** Total number of functions and methods analyzed." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          echo '```text' >> $GITHUB_STEP_SUMMARY
+          uv run lizard src/ddos_martummai/ >> $GITHUB_STEP_SUMMARY || true
+          echo '```' >> $GITHUB_STEP_SUMMARY
