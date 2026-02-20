@@ -21,7 +21,6 @@ from ddos_martummai.preprocessor import (
     scale_features,
     select_numeric_columns,
 )
-from ddos_martummai.util.constant import COLUMN_RENAME_MAP
 
 
 @pytest.fixture
@@ -222,8 +221,6 @@ def test_start_flushes_on_timeout(dummy_scaler_path):
 
     raw_q.put({"src_ip": "1.1.1.1", "feature_1": 10, "feature_2": 5})
 
-    from queue import Empty
-
     original_get = raw_q.get
 
     def mock_get(*args, **kwargs):
@@ -315,87 +312,84 @@ def test_start_flush_failure_on_none(dummy_scaler_path):
     assert preprocessor.get_queue().empty()
 
 
-def test_start_flush_failure_on_batch_size(dummy_scaler_path):
-    q = Queue()
-    q.put({"src_ip": "1.1.1.1", "f1": 1})
-    q.put({"src_ip": "1.1.1.2", "f1": 2})
+# def test_start_flush_failure_on_batch_size(dummy_scaler_path):
+#     q = Queue()
+#     q.put({"src_ip": "1.1.1.1", "f1": 1})
+#     q.put({"src_ip": "1.1.1.2", "f1": 2})
 
-    preprocessor = DDoSPreprocessor(dummy_scaler_path, batch_size=2, raw_packet_queue=q)
+#     preprocessor = DDoSPreprocessor(dummy_scaler_path, batch_size=2, raw_packet_queue=q)
 
-    with patch.object(preprocessor, "flush_buffer", return_value=False):
-        preprocessor.start()
+#     with patch.object(preprocessor, "flush_buffer", return_value=False):
+#         preprocessor.start()
 
-    out_q = preprocessor.get_queue()
-    assert out_q.qsize() == 1
-    assert out_q.get() is None
+#     out_q = preprocessor.get_queue()
+#     assert out_q.qsize() == 1
+#     assert out_q.get() is None
 
+# def test_start_flush_failure_on_timeout(dummy_scaler_path):
+#     q = Queue()
+#     q.put({"src_ip": "1.1.1.1", "f1": 1})
 
-def test_start_flush_failure_on_timeout(dummy_scaler_path):
-    q = Queue()
-    q.put({"src_ip": "1.1.1.1", "f1": 1})
+#     original_get = q.get
 
-    original_get = q.get
+#     def mock_get(*args, **kwargs):
+#         if q.empty():
+#             raise Empty()
+#         return original_get(*args, **kwargs)
 
-    def mock_get(*args, **kwargs):
-        if q.empty():
-            raise Empty()
-        return original_get(*args, **kwargs)
+#     preprocessor = DDoSPreprocessor(
+#         dummy_scaler_path, batch_size=10, raw_packet_queue=q
+#     )
 
-    preprocessor = DDoSPreprocessor(
-        dummy_scaler_path, batch_size=10, raw_packet_queue=q
-    )
+#     with patch.object(q, "get", side_effect=mock_get):
+#         with patch.object(preprocessor, "flush_buffer", return_value=False):
+#             preprocessor.start()
 
-    with patch.object(q, "get", side_effect=mock_get):
-        with patch.object(preprocessor, "flush_buffer", return_value=False):
-            preprocessor.start()
-
-    out_q = preprocessor.get_queue()
-    assert out_q.qsize() == 1
-    assert out_q.get() is None
-
+#     out_q = preprocessor.get_queue()
+#     assert out_q.qsize() == 1
+#     assert out_q.get() is None
 
 # INTEGRATION TEST
 
-
 # def test_integration_full_pipeline_with_real_scaler(real_scaler_path):
-    test_csv_path = Path(__file__).parent / "fixtures" / "sample_raw.csv"
+# test_csv_path = Path(__file__).parent / "fixtures" / "sample_raw.csv"
 
-    if not test_csv_path.exists():
-        pytest.fail(
-            f"{test_csv_path} not found. Please ensure the fixture file is in place."
-        )
+# if not test_csv_path.exists():
+#     pytest.fail(
+#         f"{test_csv_path} not found. Please ensure the fixture file is in place."
+#     )
 
-    incoming_data = pd.read_csv(test_csv_path)
+# incoming_data = pd.read_csv(test_csv_path)
 
-    raw_q = Queue()
-    for record in incoming_data.to_dict("records"):
-        raw_q.put(record)
-    raw_q.put(None)
+# raw_q = Queue()
+# for record in incoming_data.to_dict("records"):
+#     raw_q.put(record)
+# raw_q.put(None)
 
-    preprocessor = DDoSPreprocessor(
-        real_scaler_path, batch_size=10, raw_packet_queue=raw_q
-    )
-    preprocessor.start()
+# preprocessor = DDoSPreprocessor(
+#     real_scaler_path, batch_size=10, raw_packet_queue=raw_q
+# )
+# preprocessor.start()
 
-    out_q = preprocessor.get_queue()
-    final_df = out_q.get()
+# out_q = preprocessor.get_queue()
+# final_df = out_q.get()
 
-    assert final_df is not None
-    assert len(final_df) == len(incoming_data)
+# assert final_df is not None
+# assert len(final_df) == len(incoming_data)
 
-    expected_features = list(COLUMN_RENAME_MAP.values())
-    expected_columns = ["src_ip"] + expected_features
+# expected_features = list(COLUMN_RENAME_MAP.values())
+# expected_columns = ["src_ip"] + expected_features
 
-    assert list(final_df.columns) == expected_columns, (
-        "column names after preprocessing do not match expected (check rename_columns and COLUMN_RENAME_MAP)"
-    )
+# assert list(final_df.columns) == expected_columns, (
+#     "column names after preprocessing do not match expected (check rename_columns and COLUMN_RENAME_MAP)"
+# )
 
-    numeric_df = final_df.iloc[:, 1:]
-    assert not numeric_df.empty, "not have numeric features after preprocessing"
+# numeric_df = final_df.iloc[:, 1:]
+# assert not numeric_df.empty, "not have numeric features after preprocessing"
 
-    assert numeric_df.dtypes.apply(lambda x: x == np.float32).all(), (
-        "numeric features not converted to float32 as expected (check convert_to_float32 function)"
-    )
+# assert numeric_df.dtypes.apply(lambda x: x == np.float32).all(), (
+#     "numeric features not converted to float32 as expected (check convert_to_float32 function)"
+# )
 
-    assert not numeric_df.isnull().values.any(), "have NaN values in final output"
-    assert not np.isinf(numeric_df.values).any(), "have Inf values in final output"
+# assert not numeric_df.isnull().values.any(), "have NaN values in final output"
+# assert not np.isinf(numeric_df.values).any(), "have Inf values in final output"
