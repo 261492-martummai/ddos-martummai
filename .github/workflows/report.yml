@@ -1,0 +1,66 @@
+name: Code Report
+
+on:
+  push:
+    branches: ["main", "dev"]
+  pull_request:
+    branches: ["main", "dev"]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze:
+    name: Code Quality Analysis
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Install project dependencies
+        run: uv sync --dev
+
+      - name: Run Radon Report
+        run: |
+          echo "## Radon Complexity Report" >> $GITHUB_STEP_SUMMARY
+
+          echo "### How to read this report" >> $GITHUB_STEP_SUMMARY
+          echo "**1. Block Type:**" >> $GITHUB_STEP_SUMMARY
+          echo "- \`F\` = Function | \`M\` = Method | \`C\` = Class" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**2. Complexity Grade (Score):** *(Higher score = higher complexity)*" >> $GITHUB_STEP_SUMMARY
+          echo "- **A (1-5):** Simple, elegant, and easy to read. (Best)" >> $GITHUB_STEP_SUMMARY
+          echo "- **B (6-10):** Slightly complex, but acceptable." >> $GITHUB_STEP_SUMMARY
+          echo "- **C (11-20):** Moderately complex. Consider splitting into smaller chunks." >> $GITHUB_STEP_SUMMARY
+          echo "- **D (21-30):** Highly complex, hard to read, and prone to bugs." >> $GITHUB_STEP_SUMMARY
+          echo "- **E (31-40):** Overly complex. Needs immediate refactoring." >> $GITHUB_STEP_SUMMARY
+          echo "- **F (41+):** Danger! Spaghetti code. Very hard to test and maintain." >> $GITHUB_STEP_SUMMARY
+          echo "*(Reference: [Radon Cyclomatic Complexity Documentation](https://radon.readthedocs.io/en/latest/api.html#module-radon.complexity))*" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          echo '```text' >> $GITHUB_STEP_SUMMARY
+          uv run radon cc -s src/ddos_martummai/ >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+      - name: Run Lizard Report
+        run: |
+          echo "## Lizard LOC Report" >> $GITHUB_STEP_SUMMARY
+
+          echo "### Project Summary Metrics" >> $GITHUB_STEP_SUMMARY
+          echo "- **Total nloc:** Total meaningful lines of code across the project (ignoring comments and blanks)." >> $GITHUB_STEP_SUMMARY
+          echo "- **Avg.NLOC:** Average length of a function. *(Shorter is better for readability)*." >> $GITHUB_STEP_SUMMARY
+          echo "- **AvgCCN:** Average complexity per function. *(Ideally under 5. Lower means easier to test and maintain)*." >> $GITHUB_STEP_SUMMARY
+          echo "- **Fun Cnt:** Total number of functions and methods analyzed." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          echo '```text' >> $GITHUB_STEP_SUMMARY
+          uv run lizard src/ddos_martummai/ >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
