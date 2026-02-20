@@ -62,5 +62,5 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
 
           echo '```text' >> $GITHUB_STEP_SUMMARY
-          uv run lizard src/ddos_martummai/ >> $GITHUB_STEP_SUMMARY
+          uv run lizard src/ddos_martummai/ >> $GITHUB_STEP_SUMMARY || true
           echo '```' >> $GITHUB_STEP_SUMMARY
