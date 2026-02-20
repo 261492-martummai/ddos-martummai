@@ -357,7 +357,7 @@ def test_start_flush_failure_on_timeout(dummy_scaler_path):
 # INTEGRATION TEST
 
 
-# def test_integration_full_pipeline_with_real_scaler(real_scaler_path):
+def test_integration_full_pipeline_with_real_scaler(real_scaler_path):
     test_csv_path = Path(__file__).parent / "fixtures" / "sample_raw.csv"
 
     if not test_csv_path.exists():
