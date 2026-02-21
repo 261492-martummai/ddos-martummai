@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <title>Network Monitor</title>
-    <link rel="icon" href="static/favicon.ico">
+    <link rel="icon" href="static/favicon.ico" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link
       href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@300;500;700&display=swap"
@@ -17,6 +17,10 @@
       <div class="pulse"></div>
       <div class="logo">// MARTUMMAI·MONITOR</div>
       <div class="status" id="ws-status">CONNECTING...</div>
+      <div class="status" id="drift-status">DRIFT</div>
+      <button id="baseline-btn" class="baseline-btn-color" title="Save current traffic as baseline">
+        ◉ SAVE BASELINE
+      </button>
       <div id="clock"></div>
       <button id="theme-btn" title="Toggle light / dark theme">
         <span class="icon">🌙</span>
@@ -50,8 +54,15 @@
           <canvas id="ports"></canvas>
         </div>
       </div>
+      
+      <div class="panel drift-panel grid4">
+        <div class="panel-title"><span>▸</span>ML MODEL DRIFT — stability index</div>
+        <div class="chart-wrap">
+          <canvas id="drift-chart"></canvas>
+        </div>
+      </div>
 
-      <div class="panel grid4">
+      <div class="panel grid5">
         <div class="panel-title"><span>▸</span>LIVE FLOW TABLE</div>
         <div class="scroll">
           <table>
@@ -76,6 +87,8 @@
           </table>
         </div>
       </div>
+
+
     </div>
     <script src="static/js/index.js"></script>
   </body>

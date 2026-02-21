@@ -12,6 +12,11 @@ from scapy.all import IP, TCP, UDP, sniff  # type: ignore
 
 from ddos_martummai.init_models import FlowStats, TableRow
 from ddos_martummai.web.authen import _validate_session
+from ddos_martummai.web.drift_monitor import (
+    check_auto_baseline,
+    drift_score,
+    update_drift_rate,
+)
 from ddos_martummai.web.router import router
 
 app = FastAPI()
@@ -42,7 +47,9 @@ flow_counter: int = 0
 _last_second: int = int(time.time())
 _tcp_count_sec: int = 0
 _udp_count_sec: int = 0
-
+_tcp_bytes_sec:     int = 0 
+_udp_bytes_sec:     int = 0 
+_last_timestamp:    str = ""
 
 def extract_transport(pkt) -> tuple[str | None, int | None, str]:
     """Return (proto, dport, flags) from a scapy packet."""
@@ -88,7 +95,7 @@ def build_table_row(
 
 # ===================== PACKET HANDLER =====================
 def handle(pkt) -> None:
-    global flow_counter, ports_snapshot, _last_second, _tcp_count_sec, _udp_count_sec
+    global flow_counter, ports_snapshot, _last_second, _tcp_count_sec, _udp_count_sec, _tcp_bytes_sec, _udp_bytes_sec, _last_timestamp
 
     if IP not in pkt:
         return
@@ -103,34 +110,36 @@ def handle(pkt) -> None:
     current_sec = int(time.time())
 
     with _lock:
-        # --- packet rate: count packets per second ---
+        # --- packet rate & bandwidth: count packets per second ---
         if current_sec != _last_second:
             # New second started — record last second's counts
             pkt_rate_tcp.append(_tcp_count_sec)
             pkt_rate_udp.append(_udp_count_sec)
+            bandwidth_tcp.append(_tcp_bytes_sec)
+            bandwidth_udp.append(_udp_bytes_sec) 
+            bw_labels.append(_last_timestamp or ts)
+            
+            # Update drift monitor
+            total_pkt = _tcp_count_sec + _udp_count_sec
+            total_bytes = sum(bandwidth_tcp) + sum(bandwidth_udp)
+            update_drift_rate(total_pkt, total_bytes)
+
             # Reset counters
             _tcp_count_sec = 0
             _udp_count_sec = 0
+            _tcp_bytes_sec = 0
+            _udp_bytes_sec = 0
             _last_second = current_sec
-
+            
+        # Store current timestamp
+        _last_timestamp = ts
         # Increment packet counter
         if proto == "TCP":
             _tcp_count_sec += 1
+            _tcp_bytes_sec += size
         elif proto == "UDP":
             _udp_count_sec += 1
-
-        # --- bandwidth: track TCP and UDP separately ---
-        if proto == "TCP":
-            bandwidth_tcp.append(size)
-            bandwidth_udp.append(0)
-        elif proto == "UDP":
-            bandwidth_tcp.append(0)
-            bandwidth_udp.append(size)
-        else:
-            bandwidth_tcp.append(0)
-            bandwidth_udp.append(0)
-
-        bw_labels.append(ts)
+            _udp_bytes_sec += size
 
         # --- ports ---
         ports_counter[dport] += 1
@@ -178,6 +187,10 @@ async def websocket_endpoint(
     try:
         while True:
             with _lock:
+                current_drift = drift_score() 
+            
+                check_auto_baseline(current_drift)
+                
                 payload = {
                     "bandwidth_tcp": list(bandwidth_tcp),
                     "bandwidth_udp": list(bandwidth_udp),
@@ -186,6 +199,7 @@ async def websocket_endpoint(
                     "bw_labels": list(bw_labels),
                     "ports": ports_snapshot,
                     "table": [asdict(r) for r in table],
+                    "drift": current_drift,
                 }
             await websocket.send_json(payload)
             await asyncio.sleep(1)

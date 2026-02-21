@@ -14,7 +14,7 @@
   --accent2: #ff6b35;
   --muted: #1a3050;
   --text: #c8ddf0;
-  --text-dim: #4a7090;
+  --text-dim: #4083ba;
   --font-mono: "Share Tech Mono", monospace;
   --font-ui: "Rajdhani", sans-serif;
 
@@ -422,30 +422,97 @@ header {
   letter-spacing: 2px;
 }
 
+/* --- ML Drift Alert Animation --- */
+@keyframes drift-pulse {
+  0% {
+    text-shadow: 0 0 5px #ff3b3b, 0 0 10px #ff3b3b;
+    color: #ff3b3b;
+  }
+  50% {
+    text-shadow: 0 0 20px #ff0000, 0 0 30px #ff0000;
+    color: #ffffff;
+  }
+  100% {
+    text-shadow: 0 0 5px #ff3b3b, 0 0 10px #ff3b3b;
+    color: #ff3b3b;
+  }
+}
+
+/* Class ที่จะถูกเพิ่มผ่าน JS เมื่อค่า Drift > 0.25 */
+.drift-alert {
+  animation: drift-pulse 1.5s infinite;
+  font-weight: bold;
+  border: 1px solid #ff3b3b;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: rgba(255, 59, 59, 0.1);
+}
+
+/* --- Save Baseline Button Styling --- */
+.baseline-btn-color {
+  background: transparent;
+  color: var(--accent); /* ใช้สี Cyan เดิมของระบบ */
+  border: 1px solid var(--accent);
+  font-family: 'Share Tech Mono', monospace;
+  padding: 5px 15px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  margin-right: 10px;
+  font-size: 0.8rem;
+  clip-path: polygon(10% 0, 100% 0, 100% 70%, 90% 100%, 0 100%, 0 30%); /* ทรงเหลี่ยมเท่ๆ */
+}
+
+.baseline-btn-color:hover {
+  background: var(--accent);
+  color: #0a2352;
+  box-shadow: 0 0 15px var(--accent);
+}
+
+.baseline-btn-color:active {
+  transform: scale(0.95);
+}
+
+/* --- Drift Panel Grid Adjustment --- */
+.drift-panel {
+  border-left: 2px solid #ffaa00; /* สีส้มแจ้งเตือน */
+}
+
+#drift-status {
+    display: none;
+    transition: all 0.5s ease-in-out;
+}
+
+#drift-status.visible {
+    display: inline-block;
+}
+
 /* ---- Main grid ---- */
 .grid {
   display: grid;
-  grid-template-rows: repeat(8, 1fr);
+  grid-template-rows: repeat(10, 1fr);
   grid-template-columns: repeat(2, 1fr);
   gap: 10px;
 }
 .grid1 {
-  grid-column: span 2 / span 2;
-  grid-row: span 2 / span 2;
+  grid-row: span 3 / span 3;
 }
 .grid2 {
-  grid-row: span 2 / span 2;
-  grid-row-start: 3;
+  grid-row: span 3 / span 3;
 }
 .grid3 {
   grid-row: span 2 / span 2;
-  grid-row-start: 3;
+  grid-row-start: 4;
 }
 .grid4 {
-  grid-column: span 2 / span 2;
-  grid-row: span 4 / span 4;
-  grid-row-start: 5;
+  grid-row: span 2 / span 2;
+  grid-row-start: 4;
 }
+.grid5 {
+  grid-column: span 2 / span 2;
+  grid-row: span 5 / span 5;
+  grid-row-start: 6;
+}
+
 
 .panel {
   background: var(--panel);

@@ -15,6 +15,7 @@ from ddos_martummai.web.authen import (
     _revoke_session,
     _validate_session,
 )
+from ddos_martummai.web.drift_monitor import save_baseline
 
 # ===================== ROUTER SETUP =====================
 router = APIRouter()
@@ -120,3 +121,14 @@ def me(nm_session: Optional[str] = Cookie(default=None)) -> dict:
         )
 
     return {"status": "ok", "username": USERNAME}
+
+@router.post("/ml/baseline")
+def api_save_baseline(nm_session: Optional[str] = Cookie(default=None)):
+    if not _validate_session(nm_session):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="NOT AUTHENTICATED",
+        )
+
+    save_baseline()
+    return {"status": "ok", "message": "Baseline updated"}
