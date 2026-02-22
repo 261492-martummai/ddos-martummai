@@ -12,6 +12,8 @@ ExecStart=/opt/ddos-martummai/.venv/bin/ddos-martummai
 Restart=on-failure
 RestartSec=5
 
+KillSignal=SIGINT
+
 StandardOutput=journal
 StandardError=journal
 
