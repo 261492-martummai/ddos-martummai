@@ -1,7 +1,7 @@
 name: "ddos-martummai"
 arch: "amd64"
 platform: "linux"
-version: "${VERSION:-0.0.0}"
+version: "${VERSION}"
 section: "admin"
 priority: "optional"
 maintainer: "Your Name <email@example.com>"
