@@ -15,14 +15,16 @@ __pycache__/
 .idea
 *.csv
 *.deb
-*.csv#
+*.xml
 .mypy_cache/
 .pytest_cache/
 .coverage
 *.json
+!tests/**/*.csv
 
 # Environments
 logs/
 cic_output/
+output/
 .env
 config/config.yml
