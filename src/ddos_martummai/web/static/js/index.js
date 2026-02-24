@@ -344,9 +344,64 @@
         tableBody.innerHTML = html;
       }
 
+      // 1. สร้างกราฟ Drift Trend
+      const driftChart = new Chart(document.getElementById("drift-chart"), {
+          type: "line",
+          data: {
+              labels: [],
+              datasets: [{
+                  label: "Drift Score",
+                  data: [],
+                  borderColor: "#ffaa00",
+                  borderWidth: 2,
+                  tension: 0.4,
+                  pointRadius: 2,
+                  fill: false
+              }]
+          },
+          options: {
+              animation: false,
+              responsive: true,
+              maintainAspectRatio: false,
+              scales: {
+                  y: { min: 0, max: 1, ticks: { color: "#4a7090" } },
+                  x: { display: false }
+              }
+          }
+      });
+      
+      // เพิ่มท้ายไฟล์ static/js/index.js
+      const baselineBtn = document.getElementById("baseline-btn");
+
+      if (baselineBtn) {
+          baselineBtn.addEventListener("click", async () => {
+              // เปลี่ยนสีปุ่มชั่วคราวเพื่อให้รู้ว่ากดแล้ว
+              baselineBtn.innerText = "⏳ SAVING...";
+              
+              try {
+                  const res = await fetch("/ml/baseline", { 
+                      method: "POST", 
+                      credentials: "include" // สำคัญมาก: เพื่อส่ง Cookie ไปยืนยันตัวตน
+                  });
+
+                  if (res.ok) {
+                      alert("✅ บันทึก Baseline สำเร็จ!");
+                  } else {
+                      const err = await res.json();
+                      alert("❌ บันทึกไม่สำเร็จ: " + (err.detail || "Unknown Error"));
+                  }
+              } catch (error) {
+                  console.error("Baseline Error:", error);
+                  alert("❌ ติดต่อ Server ไม่ได้");
+              } finally {
+                  baselineBtn.innerText = "◉ SAVE BASELINE";
+              }
+          });
+      }
+
       // ── WebSocket ─────────────────────────────────────────
       const statusEl = document.getElementById("ws-status");
-
+      const driftEl = document.getElementById("drift-status");
       function connect() {
         const ws = new WebSocket("ws://localhost:8000/ws");
 
@@ -409,6 +464,36 @@
 
           // ── table ──────────────────────────────────────────
           renderTable(data.table);
+
+          const drift = data.drift ?? 0;
+              
+          // อัปเดตกราฟ Drift
+          driftChart.data.labels.push(""); // ไม่ใส่ label เวลาเพื่อให้กราฟไหลไปเรื่อยๆ
+          driftChart.data.datasets[0].data.push(drift);
+          if (driftChart.data.labels.length > 50) {
+              driftChart.data.labels.shift();
+              driftChart.data.datasets[0].data.shift();
+          }
+          driftChart.update("none");
+
+          if (drift > 0.45) {
+              driftEl.classList.add("visible");
+              driftEl.textContent = `DRIFT: ${drift.toFixed(3)}`;
+              
+              // จัดการสีตามระดับความอันตราย (ของเดิมที่คุณมี)
+              if (drift > 0.6) {
+                  driftEl.style.color = "#ff3b3b";
+                  driftEl.classList.add("drift-alert");
+              } else if (drift > 0.5) {
+                  driftEl.style.color = "#ffaa00";
+                  driftEl.classList.remove("drift-alert");
+              } else {
+                  driftEl.style.color = "var(--accent)";
+                  driftEl.classList.remove("drift-alert");
+              }
+          } else {
+              driftEl.classList.remove("visible");
+          }
         };
       }
 

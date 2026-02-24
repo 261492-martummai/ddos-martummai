@@ -5,11 +5,13 @@ from pathlib import Path
 from queue import Queue
 
 import joblib
+import numpy as np
 import pandas as pd
 
 from ddos_martummai.init_models import AppConfig
 from ddos_martummai.mitigator import Mitigator
 from ddos_martummai.util.constant import IP_COLUMN_NAME
+from ddos_martummai.web.drift_monitor import update_meta_prob
 
 logger = logging.getLogger("DETECTOR")
 
@@ -85,6 +87,11 @@ class DDoSDetector:
             now = time.time()
             src_ips = batch_df[IP_COLUMN_NAME].reset_index(drop=True)
             features = batch_df.drop(columns=[IP_COLUMN_NAME])
+
+            # Calculate model confidence and update temporal memory
+            probs = self.model.predict_proba(features)
+            avg_confidence = float(np.mean(np.max(probs, axis=1)))
+            update_meta_prob(avg_confidence)
 
             # ML prediction
             predictions = self.model.predict(features)
