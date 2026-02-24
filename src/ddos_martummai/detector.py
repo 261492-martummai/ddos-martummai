@@ -92,7 +92,7 @@ class DDoSDetector:
             probs = self.model.predict_proba(features)
             avg_confidence = float(np.mean(np.max(probs, axis=1)))
             update_meta_prob(avg_confidence)
-        
+
             # ML prediction
             predictions = self.model.predict(features)
             results = pd.DataFrame({"ip": src_ips, "is_attack": predictions})

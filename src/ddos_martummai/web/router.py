@@ -122,6 +122,7 @@ def me(nm_session: Optional[str] = Cookie(default=None)) -> dict:
 
     return {"status": "ok", "username": USERNAME}
 
+
 @router.post("/ml/baseline")
 def api_save_baseline(nm_session: Optional[str] = Cookie(default=None)):
     if not _validate_session(nm_session):

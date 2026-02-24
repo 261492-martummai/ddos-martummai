@@ -47,9 +47,10 @@ flow_counter: int = 0
 _last_second: int = int(time.time())
 _tcp_count_sec: int = 0
 _udp_count_sec: int = 0
-_tcp_bytes_sec:     int = 0 
-_udp_bytes_sec:     int = 0 
-_last_timestamp:    str = ""
+_tcp_bytes_sec: int = 0
+_udp_bytes_sec: int = 0
+_last_timestamp: str = ""
+
 
 def extract_transport(pkt) -> tuple[str | None, int | None, str]:
     """Return (proto, dport, flags) from a scapy packet."""
@@ -95,7 +96,15 @@ def build_table_row(
 
 # ===================== PACKET HANDLER =====================
 def handle(pkt) -> None:
-    global flow_counter, ports_snapshot, _last_second, _tcp_count_sec, _udp_count_sec, _tcp_bytes_sec, _udp_bytes_sec, _last_timestamp
+    global \
+        flow_counter, \
+        ports_snapshot, \
+        _last_second, \
+        _tcp_count_sec, \
+        _udp_count_sec, \
+        _tcp_bytes_sec, \
+        _udp_bytes_sec, \
+        _last_timestamp
 
     if IP not in pkt:
         return
@@ -116,9 +125,9 @@ def handle(pkt) -> None:
             pkt_rate_tcp.append(_tcp_count_sec)
             pkt_rate_udp.append(_udp_count_sec)
             bandwidth_tcp.append(_tcp_bytes_sec)
-            bandwidth_udp.append(_udp_bytes_sec) 
+            bandwidth_udp.append(_udp_bytes_sec)
             bw_labels.append(_last_timestamp or ts)
-            
+
             # Update drift monitor
             total_pkt = _tcp_count_sec + _udp_count_sec
             total_bytes = sum(bandwidth_tcp) + sum(bandwidth_udp)
@@ -130,7 +139,7 @@ def handle(pkt) -> None:
             _tcp_bytes_sec = 0
             _udp_bytes_sec = 0
             _last_second = current_sec
-            
+
         # Store current timestamp
         _last_timestamp = ts
         # Increment packet counter
@@ -187,10 +196,10 @@ async def websocket_endpoint(
     try:
         while True:
             with _lock:
-                current_drift = drift_score() 
-            
+                current_drift = drift_score()
+
                 check_auto_baseline(current_drift)
-                
+
                 payload = {
                     "bandwidth_tcp": list(bandwidth_tcp),
                     "bandwidth_udp": list(bandwidth_udp),
