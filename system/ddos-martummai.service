@@ -6,11 +6,12 @@ After=network.target
 Type=simple
 User=root
 WorkingDirectory=/opt/ddos-martummai
-Environment="APP_ENV=production"
 ExecStart=/opt/ddos-martummai/.venv/bin/ddos-martummai
 
 Restart=on-failure
 RestartSec=5
+
+KillSignal=SIGINT
 
 StandardOutput=journal
 StandardError=journal

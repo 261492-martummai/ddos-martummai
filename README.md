@@ -1,205 +1,173 @@
-# DDoS MarTumMai Detection System
+<div align="center">
+	<br>
+  <p><img src="src/ddos_martummai/web/static/favicon.ico" width="110" alt="DDos MarTumMai" /></p>
+  <h1>DDoS MarTumMai</h1>
+  <a href="https://github.com/261492-martummai/ddos-martummai/releases/latest"><img src="https://img.shields.io/github/v/release/261492-martummai/ddos-martummai?label=Latest%20Release&style=for-the-badge&color=success" /></a>
+	<br>
+    <br>
+  <p align="center"><img src="main_cover.jpg" alt="cover picture" /></p>
+</div>
 
-This repository contains the source code for the Machine Learning-based DDoS attack detection system. This document serves as a guide for the development team to set up the environment, contribute code, and understand the project workflow.
+_DDoS MarTumMai_ is an intelligent DDoS detection and mitigation system powered by a fine-tuned machine learning model. It analyzes network traffic flows and automatically blocks malicious attacks before they impact your services.
 
-## Installation
+## Installation & Usage
 
-If you simply want to **use** the DDoS detection system on your server, you don't need to clone the code.
+If you simply want to **use** the DDoS detection system on your server to protect your network, follow these instructions. You do not need to clone the source code.
 
-[![Latest Release](https://img.shields.io/github/v/release/261492-martummai/ddos-martummai?label=Latest%20Release&style=for-the-badge&color=success)](https://github.com/261492-martummai/ddos-martummai/releases/latest)
+### 1. Installation
 
-### Steps to Install
+The easiest way to install or update the system is using our automated installation script.
 
-1.  **Download**: Click the button above or go to the [Releases Page](https://github.com/261492-martummai/ddos-martummai/releases/latest).
-2.  Download the `.deb` file (e.g., `ddos-martummai_1.0.0_amd64.deb`) to your machine.
-3.  **Install**: Open your terminal in the folder where you downloaded the file and run:
+**Option A: Install the Latest Version (Recommended)**
+This command automatically fetches and installs the latest stable release.
 
-    ```bash
-    # Update apt first (recommended)
-    sudo apt update
+```bash
+curl -fsSL https://raw.githubusercontent.com/261492-martummai/ddos-martummai/main/install.sh | sudo bash
+```
 
-    # Install the package (replace filename with the actual one)
-    sudo apt install ./ddos-martummai_*.deb
-    ```
+**Option B: Install a Specific Version**
+If you need to install a specific version (e.g., `v0.1.0`), append the version tag at the end of the command:
 
-    _(Note: Using `./` before the filename is important specifically when installing a local .deb file with apt)_
+```bash
+curl -fsSL https://raw.githubusercontent.com/261492-martummai/ddos-martummai/main/install.sh | sudo bash -s -- v0.1.0
+```
 
-4.  **Run**: Choose how you want to run the application (Service vs Standalone).
+<details>
+<summary><b>Option C: Manual Installation (.deb)</b></summary>
 
-    #### Option A: Run as a Service (Daemon)
+1. Go to the [Releases Page](https://github.com/261492-martummai/ddos-martummai/releases/latest).
+2. Download the `.deb` file (e.g., `ddos-martummai_1.0.0_amd64.deb`).
+3. Run the following commands:
+   ```bash
+   sudo apt update
+   sudo apt install ./ddos-martummai_*.deb
+   ```
+   </details>
 
-    Recommended for production environments.
+### 2. Running the System
 
-    ```bash
-    # 1. Setup Service Config (Run once)
-    sudo martummai-setup
+Once installed, you can run the system in two ways:
 
-    # 2. Start the Service
-    sudo systemctl start ddos-martummai
+#### Run as a Background Service (Production)
 
-    # 3. (Optional) Enable at startup
-    sudo systemctl enable ddos-martummai
+This is the recommended way to keep your server protected continuously.
 
-    ```
+```bash
+# 1. Run the setup wizard to configure Network Interface and Email Alerts
+sudo ddos-martummai --setup
 
-    #### Option B: Run Standalone (CLI)
+# 2. Start the background service
+sudo systemctl start ddos-martummai
 
-    Useful for testing or manual monitoring.
+# 3. Enable the service to start automatically on system boot
+sudo systemctl enable ddos-martummai
+```
 
-    **View Help & Options:**
+#### Run as Standalone CLI (Testing/Debugging)
 
-    ```text
-    Usage: ddos-martummai [OPTIONS]
+Useful for testing or monitoring the output manually.
 
-        DDoS MarTumMai Guard: A Fine-Tuned Machine Learning DDoS detection system.
+```bash
+# Live Network Monitoring (Requires Root)
+sudo ddos-martummai
 
-    Options:
-        Modes (Default: Real-time Monitor):
-            -t, --test-mode               Run in Test/Simulation mode (requires -f).
-            --setup                       Run the initial setup wizard and exit.
-        Test Arguments:                 (Required for --test-mode)
-            -f, --file-path FILE          Input pcap or csv file path for testing.
-        Configuration Options:
-            -c, --config-file FILE        Path to configuration file.
-            -o, --override-env            Override config with Environment Variables.
-        General Options:
-            -v, --verbose                 Enable debug logging.
-        --help                          Show this message and exit.
-    ```
+# Test Mode (Simulate detection using a prepared PCAP/CSV file)
+sudo ddos-martummai -t -f ./flow.csv
 
-    **Run in Live Mode:**
-    (Requires root privileges to capture packets)
+# View Help & Options
+ddos-martummai --help
+```
 
-    ```bash
-    sudo ddos-martummai
+## For Developers: Contribution Guide
 
-    ```
-
-    **Run in Test Mode:**
-    (Simulate detection using a prepared flow file)
-
-    ```bash
-    sudo ddos-martummai -t -f ./flow.csv
-
-    ```
-
-## Development Setup (For Developers)
-
-This section is for developers who want to contribute to the project codebase.
+This section is for developers who want to contribute to the codebase, build new features, or train the ML model.
 
 ### Prerequisites
 
-Before setting up the project, ensure that you have the following installed on your local machine:
+- **Python 3.13+**
+- **Git**
+- **uv**: An extremely fast Python package installer. ([Installation Guide](https://docs.astral.sh/uv/getting-started/installation/#standalone-installer))
 
-- **Python 3.13** or higher
-- **Git** (for version control)
-- **uv** (An extremely fast Python package installer and resolver)
+### Development Setup
 
-To install `uv`, you can follow this : [Uv Installation Document](https://docs.astral.sh/uv/getting-started/installation/#standalone-installer)
+1. **Clone the repository:**
 
-### Installation Step
+   ```bash
+   git clone https://github.com/261492-martummai/ddos-martummai.git
+   cd ddos-martummai
+   ```
 
-Follow these steps to set up the development environment:
+2. **Install dependencies:**
+   This command creates a virtual environment and installs all required packages (including dev tools).
 
-1.  **Clone the repository:**
+   ```bash
+   uv sync --dev
+   ```
 
-    ```bash
-    git clone https://github.com/261492-martummai/ddos-martummai.git
-    cd ddos-martummai
-    ```
+3. **Run the application locally:**
 
-2.  **Install dependencies:**
-    This project uses `uv` for dependency management. This command will create a virtual environment and install all required packages (including development tools).
-    ```bash
-    uv sync --dev
-    ```
-3.  **Run the application:**
+   ```bash
+   # Live mode
+   uv run ddos-martummai
 
-    To start the detection system in live, use the following command:
+   # Test mode with a CSV file
+   uv run ddos-martummai -t -f ./cicflows.csv
+   ```
 
-    ```bash
-    uv run ddos-martummai
-    ```
+### VS Code Configuration (Recommended)
 
-    To start detect from csv in test mode, use the following command:
+To ensure code consistency:
 
-    ```bash
-    uv run ddos-martummai -tf ./cicflows.csv
-    ```
+1. Install the **Ruff** extension (Publisher: Astral Software) in VS Code.
+2. The included `.vscode` folder will automatically activate the recommended formatting settings upon saving.
 
-## VS Code Configuration (Recommended)
+### Branching and Contribution Strategy
 
-To ensure code consistency and enable automatic formatting on save, we recommend using Visual Studio Code with the **Ruff** extension.
+We adhere to a strict Pull Request (PR) workflow. Direct pushes to protected branches are disabled.
 
-1.  Install the **Ruff** extension (Publisher: Astral Software).
-2.  Folder named `.vscode` will activate for ruff setting.
+- **`main`**: Production-ready branch. Contains only stable code.
+- **`dev`**: Integration branch. Features are merged here first.
 
-## Development Workflow
+**Workflow Steps:**
 
-We use a strict set of tools to maintain code quality. Please run this command locally before submitting a Pull Request.
+1. **Create a Feature Branch** from `dev`:
+   ```bash
+   git checkout dev
+   git pull
+   git checkout -b feature/your-feature-name
+   ```
+2. **Develop and Test**: Ensure your code passes the quality checks locally:
+   ```bash
+   uv run checker
+   uv run pytest
+   ```
+3. **Open a PR**: Push your branch and open a Pull Request targeting `dev`.
+4. **CI/CD Checks**: GitHub Actions will automatically check Formatting (Ruff), Security (Bandit), and Unit Tests (Pytest).
+5. **Merge**: Once CI passes and the code is reviewed, your PR will be merged.
 
-```bash
-uv run checker
-```
+### Project Structure
 
-## Branching and Contribution Strategy
-
-This project adheres to a strict Pull Request (PR) workflow. Direct pushes to protected branches are disabled.
-
-### Protected Branches
-
-- **main**: The production-ready branch. Contains only stable, tested code.
-- **dev**: The integration branch. Features are merged here first for integration testing.
-
-### Workflow Steps
-
-1.  **Create a Feature Branch**: Always create a new branch from `dev`.
-    ```bash
-    git checkout -b feature/your-feature-name
-    ```
-2.  **Develop and Test**: Write your code and ensure `uv run pytest` passes locally.
-3.  **Push and Open PR**: Push your branch to GitHub and open a Pull Request targeting `dev` (or `main` for hotfixes).
-4.  **CI/CD Checks**: The GitHub Actions pipeline will automatically run. It checks:
-    - Code Formatting (Ruff)
-    - Linting (Ruff)
-    - Security (Bandit)
-    - Unit Tests (Pytest)
-5.  **Update Branch**: If the target branch has changed, you must update your branch and ensure tests still pass.
-    - _GitHub may block the merge if your branch is out of date._
-6.  **Merge**: Once CI passes and code is reviewed, the PR can be merged.
-
-## Release Process
-
-We use Git Tags to trigger the release pipeline. This process automatically builds the `.deb` package.
-
-To create a new release (Admins only):
-
-1.  Switch to the `main` branch and pull the latest changes.
-    ```bash
-    git checkout main
-    git pull origin main
-    ```
-2.  Create a tag (Semantic Versioning).
-    ```bash
-    git tag v1.0.0
-    ```
-3.  Push the tag to GitHub.
-    ```bash
-    git push origin v1.0.0
-    ```
-4.  The CI pipeline will build the package and publish it to the GitHub Releases page.
-
-## Project Structure
-
-- **src/**: Source code for the application.
-- **tests/**: Unit tests and integration tests.
-- **pyproject.toml**: Configuration file for dependencies, Ruff, Bandit, and coverage settings.
-- **.github/workflows/**: CI/CD pipeline definitions.
+- `src/`: Core application source code.
+- `tests/`: Unit and integration tests.
+- `pyproject.toml`: Dependency and tooling configuration (Ruff, Bandit, etc.).
+- `.github/workflows/`: CI/CD automation pipelines.
 
 ## Troubleshooting
 
-**Problem:** `git push` fails with an authentication error.
-**Solution:** GitHub does not support password authentication. Please use a Personal Access Token (PAT) with `repo` scope as your password.
+- **Problem:** `git push` is rejected with a "protected branch" error.
+  - **Cause:** You are trying to push directly to `main` or `dev`. We use Branch Protection rules, so direct pushes are not allowed.
+  - **Solution:** If you have already committed your changes, you don't need to undo them. Just move your commits to a new branch and push that instead:
 
-**Problem:** CI fails on "Branch out of date".
-**Solution:** In the Pull Request page, click "Update branch" to merge the latest changes from the target branch into your feature branch, then wait for the checks to run again.
+    ```bash
+    # 1. Create a new branch containing your current commits
+    git checkout -b feature/your-branch-name
+
+    # 2. Push the new branch to GitHub
+    git push -u origin feature/your-branch-name
+    ```
+
+- **Problem:** `git push` fails with an authentication error.
+  - **Solution:** GitHub no longer supports password authentication. Use a Personal Access Token (PAT) with `repo` scope instead.
+
+- **Problem:** CI fails with "Branch out of date".
+  - **Solution:** Click "Update branch" in the PR page to merge the latest target branch changes into your feature branch, then wait for the checks to rerun.
