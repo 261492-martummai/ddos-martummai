@@ -4,8 +4,8 @@
   <h1>DDoS MarTumMai</h1>
   <a href="https://github.com/261492-martummai/ddos-martummai/releases/latest"><img src="https://img.shields.io/github/v/release/261492-martummai/ddos-martummai?label=Latest%20Release&style=for-the-badge&color=success" /></a>
 	<br>
-  <p align="center"><img src="main_cover.jpg" width="650" alt="cover picture" /></p>
-	<br>
+    <br>
+  <p align="center"><img src="main_cover.jpg" alt="cover picture" /></p>
 </div>
 
 _DDoS MarTumMai_ is an intelligent DDoS detection and mitigation system powered by a fine-tuned machine learning model. It analyzes network traffic flows and automatically blocks malicious attacks before they impact your services.
