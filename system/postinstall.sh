@@ -17,15 +17,14 @@ chmod 750 "$CONFIG_DIR"
 chmod 750 "$LOG_DIR"
 chmod 750 "$DATA_DIR"
 
+export PATH="/root/.local/bin:/root/.cargo/bin:$PATH"
+
 if ! command -v uv &> /dev/null; then
     echo "[*] Installing uv package manager..."
-    # สคริปต์ install.sh ของ uv จะเลือก path เองอัตโนมัติ
     curl -LsSf https://astral.sh/uv/install.sh | sh
 else
     echo "[*] uv is already installed."
 fi
-
-export PATH="/root/.local/bin:/root/.cargo/bin:$PATH"
 
 echo "[*] Load DDoS MarTumMai Dependencies..."
 if [ -d "$APP_DIR" ]; then

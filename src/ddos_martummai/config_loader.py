@@ -91,6 +91,14 @@ class DDoSConfigLoader:
         if not self.app_config.system.token_file_path:
             self.app_config.system.token_file_path = str(token_file_path)
 
+        logger.debug(
+            "System Paths Loaded: csv=%s pcap_test_output=%s log=%s token=%s",
+            self.app_config.system.csv_output_path,
+            self.app_config.system.test_mode_output_path,
+            self.app_config.system.log_file_path,
+            self.app_config.system.token_file_path,
+        )
+
     def _check_override_env(self):
         if not self.override_env:
             return

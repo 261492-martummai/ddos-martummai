@@ -10,8 +10,10 @@ from rich.console import Console
 from rich.panel import Panel
 
 from ddos_martummai.init_models import AppConfig
+from ddos_martummai.util.path_helper import get_app_paths
 
 console = Console()
+APP_PATHS = get_app_paths()
 
 
 class SetupWizard:
@@ -56,7 +58,10 @@ class SetupWizard:
             # 3. Setup Blocking (Mitigation)
             self._setup_blocking()
 
-            # 4. Save Config
+            # 4. Setup Paths
+            self._setup_path()
+
+            # 5. Save Config
             return self._save_config()
         except KeyboardInterrupt:
             console.print("\n[red]Setup cancelled by user.[/red]")
@@ -139,6 +144,18 @@ class SetupWizard:
             )
         else:
             self.app_config.mitigation.enable_blocking = False
+
+    def _setup_path(self):
+        data_dir = APP_PATHS["data_dir"]
+        log_file_path = APP_PATHS["log_file"]
+        token_file_path = APP_PATHS["token_file"]
+
+        self.app_config.system.csv_output_path = str(data_dir)
+        self.app_config.system.log_file_path = str(log_file_path)
+        self.app_config.system.token_file_path = str(token_file_path)
+        self.app_config.system.test_mode_output_path = str(
+            data_dir / "test_results.csv"
+        )
 
     def _save_config(self) -> bool:
         try:
