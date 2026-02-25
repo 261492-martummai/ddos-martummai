@@ -1,4 +1,5 @@
 import logging
+import os
 import sys
 import threading
 import time
@@ -125,11 +126,12 @@ def main(config_file, test_mode, file_path, override_env, setup, verbose):
     # 3. Initialize modules and threads
     reader = Reader(config=app_config, mode=mode)
 
+    NM_PORT: int = int(os.getenv("NM_PORT", "8000"))
     t_web = threading.Thread(
         target=lambda: uvicorn.run(
             app,
             host="0.0.0.0",  # nosec B104
-            port=8000,
+            port=NM_PORT,
             log_config=uvicorn_log(),
         ),
         daemon=True,
