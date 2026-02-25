@@ -5,9 +5,9 @@ from typing import List
 
 import psutil
 import questionary
-import yaml
 from rich.console import Console
 from rich.panel import Panel
+from ruamel.yaml import YAML
 
 from ddos_martummai.init_models import AppConfig
 from ddos_martummai.util.path_helper import get_app_paths
@@ -20,6 +20,7 @@ class SetupWizard:
     def __init__(self, config_path: Path, app_config: AppConfig):
         self.config_path = config_path
         self.app_config = app_config
+        self.example_config = APP_PATHS["template_config"]
 
     def _get_network_interfaces(self) -> List[questionary.Choice]:
         options = []
@@ -161,10 +162,13 @@ class SetupWizard:
         try:
             self.config_path.parent.mkdir(parents=True, exist_ok=True)
 
+            yaml = YAML()
+            yaml.default_flow_style = False
+
             config_dict = asdict(self.app_config)
 
             with self.config_path.open("w", encoding="utf-8") as f:
-                yaml.dump(config_dict, f, default_flow_style=False)
+                yaml.dump(config_dict, f)
 
             console.print(
                 f"\n[bold green]Configuration saved to: {self.config_path}[/bold green]"
