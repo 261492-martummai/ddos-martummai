@@ -4,6 +4,7 @@ import subprocess  # nosec B404
 import threading
 import time
 from email.mime.text import MIMEText
+from typing import List, Union
 
 import psutil
 
@@ -23,6 +24,8 @@ LOG_ERROR = "[!]"
 class Mitigator:
     def __init__(self, config: AppConfig):
         self.config = config
+        self.first_blocking_warning_logged = False
+        self.first_email_warning_logged = False
 
     def _schedule_unblock(self, ip_address: str) -> None:
         def unblock() -> None:
@@ -46,11 +49,21 @@ class Mitigator:
 
         threading.Thread(target=unblock, daemon=False).start()
 
-    def _is_email_enabled(self) -> bool:
+    def _email_alert_enabled(self) -> bool:
         """Check if email alerting is configured."""
-        return bool(
-            self.config.mitigation.admin_email and self.config.mitigation.smtp_user
-        )
+        if not self.config.mitigation.enable_email_alert:
+            if not self.first_email_warning_logged:
+                logger.warning("Email alerting disabled in config.")
+                self.first_email_warning_logged = True
+        return self.config.mitigation.enable_email_alert
+
+    def _ip_blocking_enabled(self) -> bool:
+        """Check if blocking is enabled in config."""
+        if not self.config.mitigation.enable_blocking:
+            if not self.first_blocking_warning_logged:
+                logger.warning("IP blocking disabled in config.")
+                self.first_blocking_warning_logged = True
+        return self.config.mitigation.enable_blocking
 
     def _create_smtp_connection(self):
         """Create and authenticate SMTP connection."""
@@ -67,7 +80,7 @@ class Mitigator:
         return server
 
     def _validate_smtp_config(self) -> None:
-        if not self._is_email_enabled():
+        if not self._email_alert_enabled():
             logger.warning("Email alerting is disabled: missing config.")
             return
 
@@ -132,12 +145,24 @@ class Mitigator:
         # Run in thread to not block main processing
         threading.Thread(target=send_async, daemon=False).start()
 
-    def send_alert(self, ip_address: str, flow_info: str) -> None:
-        if not self._is_email_enabled():
+    def send_alert(self, ip_address: Union[str, List[str]], flow_info: str) -> None:
+        if not self._email_alert_enabled():
             return
 
-        logger.info(f"Initiating email alert for {ip_address}...")
-        msg = self._create_alert_message(ip_address, flow_info)
+        if isinstance(ip_address, str):
+            ip_list = [ip_address]
+        else:
+            ip_list = ip_address
+
+        valid_ips = [ip for ip in ip_list if self._valid_ip(ip)]
+
+        if not valid_ips:
+            return
+
+        ip_csv_str = ", ".join(valid_ips)
+
+        logger.info(f"Initiating email alert for {ip_csv_str}...")
+        msg = self._create_alert_message(ip_csv_str, flow_info)
         self._send_email_async(msg)
 
     def _iptables_rule_exists(self, ip_address: str) -> bool:
@@ -167,16 +192,18 @@ class Mitigator:
             raise
 
     def block_ip(self, ip_address: str) -> None:
+        if not self._ip_blocking_enabled():
+            return
+
         if not self._valid_ip(ip_address):
             return
 
-        logger.debug(f"{LOG_MITIGATION} Blocking IP: {ip_address}")
-        # try:
-        #     # Check if rule exists to avoid duplicates
-        #     if not self._iptables_rule_exists(ip_address):
-        #         logger.info(f"{LOG_MITIGATION} Blocking IP: {ip_address}")
-        #         self._iptables_add_rule(ip_address)
-        #         self._schedule_unblock(ip_address)
-        # except FileNotFoundError:
-        #     # Already logged in _iptables_rule_exists
-        #     pass
+        try:
+            # Check if rule exists to avoid duplicates
+            if not self._iptables_rule_exists(ip_address):
+                logger.info(f"Temporary Blocking IP: {ip_address}")
+                self._iptables_add_rule(ip_address)
+                self._schedule_unblock(ip_address)
+        except FileNotFoundError:
+            # Already logged in _iptables_rule_exists
+            pass

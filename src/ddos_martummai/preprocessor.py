@@ -120,11 +120,11 @@ def process_batch(
             processed_batches.append(batch)
 
             total_rows += len(batch)
-            logger.info(f"Processed batch {batch_num} ({total_rows} rows total)")
+            logger.debug(f"Processed batch {batch_num} ({total_rows} rows total)")
 
         if processed_batches:
             result_df = pd.concat(processed_batches, ignore_index=True)
-            logger.info(f"Preprocessing complete. Total rows: {len(result_df)}")
+            logger.debug(f"Preprocessing complete. Total rows: {len(result_df)}")
             return result_df
 
         logger.warning("No data processed")
@@ -208,21 +208,21 @@ class DDoSPreprocessor:
                 buffer.append(packet)
 
                 if len(buffer) >= self.batch_size:
-                    logger.info(f"Flushing due to batch size (buffer: {len(buffer)})")
+                    logger.debug(f"Flushing due to batch size (buffer: {len(buffer)})")
                     success = self.flush_buffer(buffer)
                     buffer = []
                     if not success:
                         self.cleaned_packet_queue.put(None)
-                        logger.info("Preprocessor stopped after flush error.")
+                        logger.error("Preprocessor stopped after flush error.")
                         break
             except Empty:
                 if buffer:
-                    logger.info(f"Flushing due to empty queue (buffer: {len(buffer)})")
+                    logger.debug(f"Flushing due to empty queue (buffer: {len(buffer)})")
                     success = self.flush_buffer(buffer)
                     buffer = []
                     if not success:
                         self.cleaned_packet_queue.put(None)
-                        logger.info("Preprocessor stopped after flush error.")
+                        logger.error("Preprocessor stopped after flush error.")
                         break
 
     def flush_buffer(self, buffer: list) -> bool:

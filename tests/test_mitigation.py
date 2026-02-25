@@ -19,6 +19,8 @@ def mock_app_config():
     return AppConfig(
         system=SystemConfig(interface="eth0"),
         mitigation=MitigationConfig(
+            enable_email_alert=True,
+            enable_blocking=True,
             block_duration_seconds=60,
             admin_email="admin@test.com",
             smtp_user="sender@test.com",
@@ -37,13 +39,13 @@ def mitigator(mock_app_config):
 # EMAIL & SMTP TESTS
 
 
-def test_is_email_enabled(mitigator, mock_app_config):
+def test_email_alert_enabled(mitigator, mock_app_config):
     # Case 1: Enabled
-    assert mitigator._is_email_enabled() is True
+    assert mitigator._email_alert_enabled() is True
 
     # Case 2: Disabled
-    mock_app_config.mitigation.admin_email = ""
-    assert mitigator._is_email_enabled() is False
+    mock_app_config.mitigation.enable_email_alert = False
+    assert mitigator._email_alert_enabled() is False
 
 
 def test_create_smtp_connection(mitigator):
@@ -72,10 +74,13 @@ def test_validate_smtp_config_success(mitigator):
 
 
 def test_validate_smtp_config_failure(mitigator, caplog):
-    with patch.object(
-        mitigator,
-        "_create_smtp_connection",
-        side_effect=Exception("Connection Refused"),
+    with (
+        patch.object(
+            mitigator,
+            "_create_smtp_connection",
+            side_effect=Exception("Connection Refused"),
+        ),
+        patch.object(mitigator, "_email_alert_enabled", return_value=True),
     ):
         mitigator._validate_smtp_config()
 
@@ -83,7 +88,7 @@ def test_validate_smtp_config_failure(mitigator, caplog):
 
 
 def test_validate_smtp_config_when_email_disabled(mitigator, caplog):
-    mitigator.config.mitigation.admin_email = ""
+    mitigator.config.mitigation.enable_email_alert = False
 
     mitigator._validate_smtp_config()
     assert "Email alerting is disabled: missing config." in caplog.text
@@ -118,7 +123,7 @@ def test_send_alert_enabled(mitigator):
 
 
 def test_send_alert_disabled(mitigator, mock_app_config):
-    mock_app_config.mitigation.admin_email = ""
+    mock_app_config.mitigation.enable_email_alert = False
 
     with patch.object(mitigator, "_create_alert_message") as mock_create:
         mitigator.send_alert("1.1.1.1", "info")
@@ -239,36 +244,36 @@ def test_iptables_add_rule_failure(mitigator):
             mitigator._iptables_add_rule("1.1.1.1")
 
 
-# def test_block_ip_success(mitigator):
-#     with (
-#         patch.object(mitigator, "_valid_ip", return_value=True) as mock_valid,
-#         patch.object(
-#             mitigator, "_iptables_rule_exists", return_value=False
-#         ) as mock_exists,
-#         patch.object(mitigator, "_iptables_add_rule") as mock_add,
-#         patch.object(mitigator, "_schedule_unblock") as mock_schedule,
-#     ):
-#         mitigator.block_ip("8.8.8.8")
+def test_block_ip_success(mitigator):
+    with (
+        patch.object(mitigator, "_valid_ip", return_value=True) as mock_valid,
+        patch.object(
+            mitigator, "_iptables_rule_exists", return_value=False
+        ) as mock_exists,
+        patch.object(mitigator, "_iptables_add_rule") as mock_add,
+        patch.object(mitigator, "_schedule_unblock") as mock_schedule,
+    ):
+        mitigator.block_ip("8.8.8.8")
 
-#         mock_valid.assert_called_once_with("8.8.8.8")
-#         mock_exists.assert_called_once_with("8.8.8.8")
-#         mock_add.assert_called_once_with("8.8.8.8")
-#         mock_schedule.assert_called_once_with("8.8.8.8")
+        mock_valid.assert_called_once_with("8.8.8.8")
+        mock_exists.assert_called_once_with("8.8.8.8")
+        mock_add.assert_called_once_with("8.8.8.8")
+        mock_schedule.assert_called_once_with("8.8.8.8")
 
 
-# def test_block_ip_already_blocked(mitigator):
-#     with (
-#         patch.object(mitigator, "_valid_ip", return_value=True) as mock_valid,
-#         patch.object(
-#             mitigator, "_iptables_rule_exists", return_value=True
-#         ) as mock_exists,
-#         patch.object(mitigator, "_iptables_add_rule") as mock_add,
-#     ):
-#         mitigator.block_ip("8.8.8.8")
+def test_block_ip_already_blocked(mitigator):
+    with (
+        patch.object(mitigator, "_valid_ip", return_value=True) as mock_valid,
+        patch.object(
+            mitigator, "_iptables_rule_exists", return_value=True
+        ) as mock_exists,
+        patch.object(mitigator, "_iptables_add_rule") as mock_add,
+    ):
+        mitigator.block_ip("8.8.8.8")
 
-#         mock_valid.assert_called_once_with("8.8.8.8")
-#         mock_exists.assert_called_once_with("8.8.8.8")
-#         mock_add.assert_not_called()
+        mock_valid.assert_called_once_with("8.8.8.8")
+        mock_exists.assert_called_once_with("8.8.8.8")
+        mock_add.assert_not_called()
 
 
 def test_block_ip_exception_handled_silently(mitigator):

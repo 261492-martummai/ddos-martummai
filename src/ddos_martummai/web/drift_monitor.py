@@ -22,6 +22,7 @@ AUTO_BASELINE_DURATION = 3600
 
 drift_stable_start_time = None
 
+
 def update_meta_prob(prob: float):
     meta_prob_history.append(prob)
 

@@ -2,10 +2,10 @@ import logging
 import os
 import shutil
 import sys
-from dataclasses import asdict, fields
+from dataclasses import MISSING, asdict, fields
 from pathlib import Path
 
-import yaml
+from ruamel.yaml import YAML
 
 from ddos_martummai.init_models import (
     AppConfig,
@@ -36,6 +36,7 @@ class DDoSConfigLoader:
         self._ensure_config_file_exists()
         self._load_app_config()
         self._inject_system_paths()
+        self._inject_detector_settings()
         self._check_override_env()
         self._validate_config()
         self._setup_logger()
@@ -56,12 +57,16 @@ class DDoSConfigLoader:
             shutil.copy(APP_PATHS["template_config"], self.config_file)
         else:
             logger.info("Creating from internal defaults...")
+            yaml = YAML()
+            yaml.default_flow_style = False
+
             with open(self.config_file, "w") as f:
                 yaml.dump(asdict(AppConfig()), f)
 
     def _load_app_config(self):
+        yaml = YAML(typ="safe")
         with open(self.config_file) as f:
-            raw = yaml.safe_load(f) or {}
+            raw = yaml.load(f) or {}
 
         self.app_config = AppConfig(
             system=SystemConfig(**raw.get("system", {})),
@@ -98,6 +103,26 @@ class DDoSConfigLoader:
             self.app_config.system.log_file_path,
             self.app_config.system.token_file_path,
         )
+
+    def _inject_detector_settings(self):
+        detector_setting = self.app_config.detector
+
+        for f in fields(detector_setting):
+            field_name = f.name
+            current_value = getattr(detector_setting, field_name)
+
+            if current_value is None:
+                default_value = f.default
+                if default_value is MISSING and f.default_factory is not MISSING:
+                    default_value = f.default_factory()
+
+                setattr(detector_setting, field_name, default_value)
+
+                logger.warning(
+                    f"[CONFIG] '{field_name}' is missing or invalid. Using default: {default_value}"
+                )
+            else:
+                logger.debug(f"[CONFIG] '{field_name}' is set to: {current_value}")
 
     def _check_override_env(self):
         if not self.override_env:
@@ -142,13 +167,28 @@ class DDoSConfigLoader:
 
         # 2. Mitigation Config Validation
         mit = cfg.mitigation
-        if not mit.admin_email:
-            errors.append("Admin Email is required")
-        else:
+        if mit.enable_email_alert:
+            if not mit.admin_email:
+                errors.append("Admin Email is required for email alerts")
             if not mit.smtp_user:
-                errors.append("SMTP User is required")
+                errors.append("SMTP User is required for email alerts")
             if not mit.smtp_password:
-                errors.append("SMTP Password is required")
+                errors.append("SMTP Password is required for email alerts")
+            if not mit.smtp_server:
+                errors.append("SMTP Server is required for email alerts")
+            if not mit.smtp_port:
+                errors.append("SMTP Port is required for email alerts")
+
+        if cfg.system.google_drive_upload:
+            if not cfg.system.google_drive_folder_id:
+                errors.append(
+                    "Google Drive Folder ID is required for Google Drive uploads"
+                )
+            if not cfg.system.token_file_path:
+                errors.append("Token file path is required for Google Drive uploads")
+
+        if mit.enable_blocking and not mit.block_duration_seconds:
+            errors.append("Block duration is required when blocking is enabled")
 
         for error in errors:
             logger.warning(f"Config Validator: {error}")

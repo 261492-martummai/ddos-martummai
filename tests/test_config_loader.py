@@ -55,7 +55,7 @@ def test_ensure_config_file_exists_when_file_exists(mock_config_file):
     mock_config_file.touch()
     with (
         patch("ddos_martummai.config_loader.shutil.copy") as mock_copy,
-        patch("ddos_martummai.config_loader.yaml.dump") as mock_dump,
+        patch("ddos_martummai.config_loader.YAML.dump") as mock_dump,
     ):
         loader = DDoSConfigLoader(mock_config_file)
         loader._ensure_config_file_exists()
