@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Network Monitor</title>
+    <link rel="icon" href="static/favicon.ico" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@300;500;700&display=swap"
+      rel="stylesheet"
+    />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="static/css/style.css" />
+  </head>
+  <body>
+    <header>
+      <div class="pulse"></div>
+      <div class="logo">// MARTUMMAI·MONITOR</div>
+      <div class="status" id="ws-status">CONNECTING...</div>
+      <div class="status" id="drift-status">DRIFT</div>
+      <button id="baseline-btn" class="baseline-btn-color" title="Save current traffic as baseline">
+        ◉ SAVE BASELINE
+      </button>
+      <div id="clock"></div>
+      <button id="theme-btn" title="Toggle light / dark theme">
+        <span class="icon">🌙</span>
+        <span class="label">DARK</span>
+      </button>
+      <button id="logout-btn" class="logout-btn-color" title="Sign out">
+        ⏻ LOGOUT
+      </button>
+    </header>
+
+    <div class="grid">
+      <div class="panel rate-panel grid1">
+        <div class="panel-title">
+          <span>▸</span>REQUEST RATE — packets / sec
+        </div>
+        <div class="chart-wrap">
+          <canvas id="rate"></canvas>
+        </div>
+      </div>
+
+      <div class="panel bw-panel grid2">
+        <div class="panel-title"><span>▸</span>BANDWIDTH — bytes / sec</div>
+        <div class="chart-wrap">
+          <canvas id="bw"></canvas>
+        </div>
+      </div>
+
+      <div class="panel ports-panel grid3">
+        <div class="panel-title"><span>▸</span>PORTS — last 10 flows</div>
+        <div class="chart-wrap">
+          <canvas id="ports"></canvas>
+        </div>
+      </div>
+      
+      <div class="panel drift-panel grid4">
+        <div class="panel-title"><span>▸</span>ML MODEL DRIFT — stability index</div>
+        <div class="chart-wrap">
+          <canvas id="drift-chart"></canvas>
+        </div>
+      </div>
+
+      <div class="panel grid5">
+        <div class="panel-title"><span>▸</span>LIVE FLOW TABLE</div>
+        <div class="scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th>Src IP</th>
+                <th>Dst IP</th>
+                <th>Dst Port</th>
+                <th>Pkts</th>
+                <th>Bytes</th>
+                <th>SYN</th>
+                <th>ACK</th>
+                <th>PSH</th>
+                <th>RST</th>
+                <th>FIN</th>
+                <th>Window Start(ns)</th>
+                <th>Duration(ns)</th>
+              </tr>
+            </thead>
+            <tbody id="flow-table"></tbody>
+          </table>
+        </div>
+      </div>
+
+
+    </div>
+    <script src="static/js/index.js"></script>
+  </body>
+</html>

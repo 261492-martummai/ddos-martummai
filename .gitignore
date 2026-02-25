@@ -14,13 +14,17 @@ __pycache__/
 *.pyc
 .idea
 *.csv
-*.csv#
+*.deb
+*.xml
 .mypy_cache/
 .pytest_cache/
 .coverage
+*.json
+!tests/**/*.csv
 
 # Environments
 logs/
 cic_output/
+output/
 .env
 config/config.yml
