@@ -1,9 +1,10 @@
 import hmac
+import os
 from pathlib import Path
 from typing import Optional
 
 from fastapi import APIRouter, Cookie, HTTPException, Response, status
-from fastapi.responses import FileResponse, RedirectResponse
+from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 
 from ddos_martummai.init_models import LoginRequest
 from ddos_martummai.web.authen import (
@@ -20,6 +21,8 @@ from ddos_martummai.web.drift_monitor import save_baseline
 # ===================== ROUTER SETUP =====================
 router = APIRouter()
 current_dir = Path(__file__).parent.resolve()
+NM_HOST: str = os.getenv("NM_HOST", "localhost")
+NM_PORT: int = int(os.getenv("NM_PORT", "8000"))
 
 
 # ===================== PAGE ROUTES =====================
@@ -44,9 +47,23 @@ def login_page():
 
 @router.get("/monitor")
 def monitor_page():
-    """Serve index.html with cache-busting headers."""
-    return FileResponse(
-        current_dir / "static" / "index.html",
+    """Serve index.html with injected WS_HOST configuration."""
+    html_path = current_dir / "static" / "index.html"
+
+    # Read HTML template
+    with open(html_path, "r", encoding="utf-8") as f:
+        html_content = f.read()
+
+    config_script = f"""
+            <script>
+                window.NM_HOST = "{NM_HOST}";
+                window.NM_PORT = "{NM_PORT}";
+            </script>
+        </head>"""
+    html_content = html_content.replace("</head>", config_script)
+
+    return HTMLResponse(
+        content=html_content,
         headers={
             "Cache-Control": "no-cache, no-store, must-revalidate",
             "Pragma": "no-cache",

@@ -403,7 +403,9 @@
       const statusEl = document.getElementById("ws-status");
       const driftEl = document.getElementById("drift-status");
       function connect() {
-        const ws = new WebSocket("ws://localhost:8000/ws");
+        const wsHost = window.NM_HOST || 'localhost';
+        const wsPort = window.NM_PORT || 8000;
+        const ws = new WebSocket(`ws://${wsHost}:${wsPort}/ws`);
 
         ws.onopen = () => {
           statusEl.textContent = "LIVE";
