@@ -1,21 +1,52 @@
 system:
+  # Network Interface to Monitor (e.g., Ethernet, Wi-Fi) !!! REQUIRED !!!
   interface: null
+
+  # Google Drive Upload Configuration
+  google_drive_upload: false
+  google_drive_folder_id: null
+
+  # CSV Rotation Configuration (Max rows for uploading to Google Drive)
+  csv_rotation_rows: 1000000
+
+  # When --setup all paths will be configured automatically, but you can also set them manually here if desired
   csv_output_path: null
   test_mode_output_path: null
   log_file_path: null
-  google_drive_upload: false
-  google_drive_folder_id: null
   token_file_path: null
-  csv_rotation_rows: 1000000
 
 model:
+  # Model Input Batch Size
   batch_size: 1000
 
 mitigation:
+  # Blocking Configuration
   enable_blocking: false
   block_duration_seconds: 180
+
+  # Email Alert Configuration
+  enable_email_alert: false
   admin_email: ""
   smtp_server: ""
   smtp_port: 587
   smtp_user: ""
   smtp_password: ""
+
+detector:
+  # Global Botnet
+  global_min_samples: 50
+  global_attack_ratio: 0.75
+  global_ip_diversity: 0.4
+
+  # Slow/Persistent Attack
+  slow_min_duration: 300
+  slow_max_pps: 0.5
+  slow_attack_ratio: 0.4
+
+  # Batch Volumetric
+  ip_burst_threshold: 0.7
+  ip_min_count_in_batch: 15
+
+  # Memory Management
+  mem_timeout: 900
+  cleanup_interval: 600
