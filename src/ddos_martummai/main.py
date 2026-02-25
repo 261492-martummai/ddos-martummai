@@ -146,7 +146,7 @@ def main(config_file, test_mode, file_path, override_env, setup, verbose):
     )
     detector = DDoSDetector(
         model_path=model_path,
-        config=app_config.detector,
+        config=app_config,
         cleaned_packet_queue=preprocessor.get_queue(),
     )
 
