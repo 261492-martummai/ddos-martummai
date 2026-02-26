@@ -109,6 +109,7 @@ class SetupWizard:
 
         if questionary.confirm("Do you want to enable Email Alerts?").ask():
             mit = self.app_config.mitigation
+            mit.enable_email_alerts = True
             console.print(
                 "[cyan]Please provide SMTP details (All fields required):[/cyan]"
             )
@@ -133,6 +134,8 @@ class SetupWizard:
                     else "Port must be a number",
                 ).ask()
             )
+        else:
+            self.app_config.mitigation.enable_email_alerts = False
 
     def _setup_blocking(self):
         if questionary.confirm(
