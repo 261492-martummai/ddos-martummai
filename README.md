@@ -189,4 +189,4 @@ This project utilizes the following open-source software:
 - CICFlowMeter (MIT License)
   https://github.com/hieulw/cicflowmeter
 
-See THIRD_PARTY_LICENSES.md for full license details.
+See NOTICES.md for full license details.
