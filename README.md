@@ -171,3 +171,22 @@ We adhere to a strict Pull Request (PR) workflow. Direct pushes to protected bra
 
 - **Problem:** CI fails with "Branch out of date".
   - **Solution:** Click "Update branch" in the PR page to merge the latest target branch changes into your feature branch, then wait for the checks to rerun.
+
+## Dataset
+
+This model was trained using the CICDDoS2019 dataset
+provided by the Canadian Institute for Cybersecurity (CIC).
+
+The dataset is not redistributed in this repository.
+Please download it from the official source:
+
+https://www.unb.ca/cic/datasets/ddos-2019.html
+
+## Third-Party Components
+
+This project utilizes the following open-source software:
+
+- CICFlowMeter (MIT License)
+  https://github.com/hieulw/cicflowmeter
+
+See THIRD_PARTY_LICENSES.md for full license details.
