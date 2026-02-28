@@ -8,6 +8,7 @@ from email.mime.text import MIMEText
 import psutil
 
 from ddos_martummai.init_models import AppConfig
+from ddos_martummai.web.monitor import push_mitigation_event
 
 logger = logging.getLogger("MITIGATOR")
 
@@ -169,6 +170,8 @@ class Mitigator:
     def block_ip(self, ip_address: str) -> None:
         if not self._valid_ip(ip_address):
             return
+
+        push_mitigation_event(ip_address)
 
         logger.debug(f"{LOG_MITIGATION} Blocking IP: {ip_address}")
         # try:

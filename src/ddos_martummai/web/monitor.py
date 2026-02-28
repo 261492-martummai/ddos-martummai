@@ -25,6 +25,8 @@ app.mount("/static", StaticFiles(directory=current_dir / "static"), name="static
 
 app.include_router(router)
 
+mitigation_events: deque[dict] = deque(maxlen=20)
+
 # ===================== CONFIGURATION =====================
 BW_WINDOW = 60  # seconds of bandwidth history
 FLOW_WINDOW = 10  # flows before resetting port counters
@@ -50,6 +52,12 @@ _udp_count_sec: int = 0
 _tcp_bytes_sec: int = 0
 _udp_bytes_sec: int = 0
 _last_timestamp: str = ""
+
+
+def push_mitigation_event(ip: str):
+    mitigation_events.appendleft(
+        {"ip": ip, "time": time.strftime("%H:%M:%S"), "type": "block"}
+    )
 
 
 def extract_transport(pkt) -> tuple[str | None, int | None, str]:
@@ -209,6 +217,7 @@ async def websocket_endpoint(
                     "ports": ports_snapshot,
                     "table": [asdict(r) for r in table],
                     "drift": current_drift,
+                    "mitigations": list(mitigation_events),
                 }
             await websocket.send_json(payload)
             await asyncio.sleep(1)
