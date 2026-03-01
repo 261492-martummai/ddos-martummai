@@ -1,8 +1,10 @@
+from __future__ import annotations
+
 import logging
 import sys
 import time
+from multiprocessing import Queue
 from pathlib import Path
-from queue import Queue
 
 import joblib
 import numpy as np

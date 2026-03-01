@@ -1,6 +1,9 @@
+from __future__ import annotations
+
 import logging
+from multiprocessing import Queue
 from pathlib import Path
-from queue import Empty, Queue
+from queue import Empty
 from typing import Dict, Tuple
 
 import joblib
@@ -169,14 +172,14 @@ class DDoSPreprocessor:
         scaler_path: str,
         batch_size: int,
         raw_packet_queue: Queue[dict | None],
+        cleaned_packet_queue: Queue[pd.DataFrame | None],
+        stop_event,
     ):
         self.scaler = load_scaler(scaler_path)
         self.batch_size = batch_size
         self.raw_packet_queue: Queue[dict | None] = raw_packet_queue
-        self.cleaned_packet_queue: Queue[pd.DataFrame | None] = Queue()
-
-    def get_queue(self) -> Queue[pd.DataFrame | None]:
-        return self.cleaned_packet_queue
+        self.cleaned_packet_queue: Queue[pd.DataFrame | None] = cleaned_packet_queue
+        self.stop_event = stop_event
 
     def start(self):
         """
@@ -190,40 +193,58 @@ class DDoSPreprocessor:
         logger.info("Preprocessor Started.")
         buffer = []
 
-        while True:
-            try:
-                packet = self.raw_packet_queue.get(timeout=0.1)
-                if packet is None:
-                    if buffer:
-                        logger.info(f"Flushing remaining {len(buffer)} packets.")
+        try:
+            while not self.stop_event.is_set():
+                try:
+                    packet = self.raw_packet_queue.get(timeout=0.5)
+
+                    if packet is None:
+                        logger.info(
+                            "Received sentinel (None) from upstream. Stopping..."
+                        )
+                        break
+
+                    buffer.append(packet)
+
+                    if len(buffer) >= self.batch_size:
+                        logger.debug(
+                            f"Flushing due to batch size (buffer: {len(buffer)})"
+                        )
                         success = self.flush_buffer(buffer)
-                        buffer = []
+                        buffer.clear()
+
                         if not success:
-                            break
+                            raise RuntimeError(
+                                "Unrecoverable error during batch flush."
+                            )
 
-                    self.cleaned_packet_queue.put(None)
-                    logger.info("Preprocessor stopped.")
-                    break
+                except Empty:
+                    if buffer:
+                        logger.debug(
+                            f"Flushing due to empty queue timeout (buffer: {len(buffer)})"
+                        )
+                        success = self.flush_buffer(buffer)
+                        buffer.clear()
 
-                buffer.append(packet)
+                        if not success:
+                            raise RuntimeError(
+                                "Unrecoverable error during timeout flush."
+                            )
+        except Exception as e:
+            logger.error(f"Preprocessor encountered an internal error: {e}")
+        finally:
+            if buffer:
+                logger.info(
+                    f"Flushing remaining {len(buffer)} packets before shutdown."
+                )
+                self.flush_buffer(buffer)
+                buffer.clear()
 
-                if len(buffer) >= self.batch_size:
-                    logger.debug(f"Flushing due to batch size (buffer: {len(buffer)})")
-                    success = self.flush_buffer(buffer)
-                    buffer = []
-                    if not success:
-                        self.cleaned_packet_queue.put(None)
-                        logger.error("Preprocessor stopped after flush error.")
-                        break
-            except Empty:
-                if buffer:
-                    logger.debug(f"Flushing due to empty queue (buffer: {len(buffer)})")
-                    success = self.flush_buffer(buffer)
-                    buffer = []
-                    if not success:
-                        self.cleaned_packet_queue.put(None)
-                        logger.error("Preprocessor stopped after flush error.")
-                        break
+            self.stop()
+
+    def stop(self):
+        self.cleaned_packet_queue.put(None)
+        logger.info("Preprocessor stopped.")
 
     def flush_buffer(self, buffer: list) -> bool:
         """

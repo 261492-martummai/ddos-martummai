@@ -1,8 +1,10 @@
 import logging
 import os
+import signal
 import sys
 import threading
 import time
+from multiprocessing import Event, Process, Queue, freeze_support
 from pathlib import Path
 
 import click
@@ -24,6 +26,54 @@ from ddos_martummai.web import monitor
 from ddos_martummai.web.monitor import app
 
 APP_PATHS = get_app_paths()
+
+
+def run_reader(config, mode, out_queue, stop_event, file_path=None, verbose=False):
+    signal.signal(signal.SIGINT, signal.SIG_IGN)
+    get_console_logger(logging.DEBUG if verbose else logging.INFO)
+
+    try:
+        reader = Reader(
+            config=config, mode=mode, raw_packet_queue=out_queue, stop_event=stop_event
+        )
+        if mode == "live":
+            reader.start()
+        else:
+            reader.start(file_path)
+    except KeyboardInterrupt:
+        pass
+
+
+def run_preprocessor(
+    scaler_path, batch_size, in_queue, out_queue, stop_event, verbose=False
+):
+    signal.signal(signal.SIGINT, signal.SIG_IGN)
+    get_console_logger(logging.DEBUG if verbose else logging.INFO)
+
+    try:
+        preprocessor = DDoSPreprocessor(
+            scaler_path=scaler_path,
+            batch_size=batch_size,
+            raw_packet_queue=in_queue,
+            cleaned_packet_queue=out_queue,
+            stop_event=stop_event,
+        )
+        preprocessor.start()
+    except KeyboardInterrupt:
+        pass
+
+
+def run_detector(model_path, config, in_queue, verbose=False):
+    signal.signal(signal.SIGINT, signal.SIG_IGN)
+    get_console_logger(logging.DEBUG if verbose else logging.INFO)
+
+    try:
+        detector = DDoSDetector(
+            model_path=model_path, config=config, cleaned_packet_queue=in_queue
+        )
+        detector.start()
+    except KeyboardInterrupt:
+        pass
 
 
 @click.command(context_settings=CONTEXT_SETTINGS)
@@ -124,8 +174,6 @@ def main(config_file, test_mode, file_path, override_env, setup, verbose):
     logger.info(f"Initializing modules in mode: {mode}")
 
     # 3. Initialize modules and threads
-    reader = Reader(config=app_config, mode=mode)
-
     NM_PORT: int = int(os.getenv("NM_PORT", "8000"))
     t_web = threading.Thread(
         target=lambda: uvicorn.run(
@@ -139,36 +187,38 @@ def main(config_file, test_mode, file_path, override_env, setup, verbose):
     t_web.start()
     monitor.start()
 
-    preprocessor = DDoSPreprocessor(
-        scaler_path=scaler_path,
-        batch_size=app_config.model.batch_size,
-        raw_packet_queue=reader.get_queue(),
-    )
-    detector = DDoSDetector(
-        model_path=model_path,
-        config=app_config,
-        cleaned_packet_queue=preprocessor.get_queue(),
-    )
+    raw_packet_queue = Queue(maxsize=20000)
+    cleaned_packet_queue = Queue(maxsize=20000)
 
-    if mode == "live":
-        t_reader = threading.Thread(target=reader.start)
-    else:
-        t_reader = threading.Thread(target=reader.start, args=(file_path,))
-    t_prep = threading.Thread(target=preprocessor.start)
-    t_det = threading.Thread(target=detector.start)
+    stop_event = Event()
 
-    logger.info("Starting worker threads...")
-    t_det.start()
-    t_prep.start()
-    t_reader.start()
+    reader_args = (app_config, mode, raw_packet_queue, stop_event, file_path, verbose)
+    prep_args = (
+        scaler_path,
+        app_config.model.batch_size,
+        raw_packet_queue,
+        cleaned_packet_queue,
+        stop_event,
+        verbose,
+    )
+    det_args = (model_path, app_config, cleaned_packet_queue, verbose)
+
+    p_reader = Process(target=run_reader, args=reader_args, name="ReaderProcess")
+    p_prep = Process(target=run_preprocessor, args=prep_args, name="PrepProcess")
+    p_det = Process(target=run_detector, args=det_args, name="DetProcess")
+
+    logger.info("Starting worker processes...")
+    p_det.start()
+    p_prep.start()
+    p_reader.start()
 
     try:
         while True:
             time.sleep(1)
 
-            reader_died = not t_reader.is_alive()
-            prep_died = not t_prep.is_alive()
-            det_died = not t_det.is_alive()
+            reader_died = not p_reader.is_alive()
+            prep_died = not p_prep.is_alive()
+            det_died = not p_det.is_alive()
 
             if mode == "live":
                 if reader_died or prep_died or det_died:
@@ -199,19 +249,19 @@ def main(config_file, test_mode, file_path, override_env, setup, verbose):
             logger.warning("Keyboard Interrupt detected. Stopping...")
 
         logger.info("Stopping DDoS Guard Service...")
-        reader.stop()
+        stop_event.set()
 
         if isinstance(e, RuntimeError):
             try:
-                reader.get_queue().put(None)
+                raw_packet_queue.put(None)
             except Exception as ex:
                 logger.error(f"Failed to inject poison pill: {ex}")
 
-        logger.info("Waiting for worker threads to finish")
+        logger.info("Waiting for worker processes to finish")
 
-        t_reader.join()
-        t_prep.join()
-        t_det.join()
+        p_reader.join()
+        p_prep.join()
+        p_det.join()
 
         logger.info("--- All systems shutdown safely ---")
         if isinstance(e, RuntimeError):
@@ -219,4 +269,5 @@ def main(config_file, test_mode, file_path, override_env, setup, verbose):
 
 
 if __name__ == "__main__":
+    freeze_support()
     main()

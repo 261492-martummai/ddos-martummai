@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import logging
 import os
 import re
@@ -5,8 +7,8 @@ import shutil
 import subprocess  # nosec B404
 import sys
 import time
+from multiprocessing import Queue
 from pathlib import Path
-from queue import Queue
 from typing import Optional
 
 import pandas as pd
@@ -18,24 +20,27 @@ logger = logging.getLogger("READER")
 
 
 class Reader:
-    def __init__(self, config: AppConfig, mode: str = "live"):
+    def __init__(
+        self,
+        config: AppConfig,
+        raw_packet_queue: Queue[dict | None],
+        stop_event,
+        mode: str = "live",
+    ):
         self.config = config
         self.mode = mode
-        self.running = False
+        self.raw_packet_queue: Queue[dict | None] = raw_packet_queue
+        self.stop_event = stop_event
         self.cic_process: Optional[subprocess.Popen] = None
-        self.raw_packet_queue: Queue[dict | None] = Queue()
         self.cic_output_dir: Optional[Path] = None
         self.upload_queue_dir: Optional[Path] = None
         self.uploader: Optional[DriveUploader] = None
-
-    def get_queue(self) -> Queue[dict | None]:
-        return self.raw_packet_queue
+        self.file_sequence = 0
 
     # ---------- Public API ----------
 
     def start(self, input_file: Optional[Path] = None):
         logger.info("Reader Started")
-        self.running = True
 
         try:
             if self.mode == "live":
@@ -47,12 +52,13 @@ class Reader:
             else:
                 raise ValueError(f"Unknown mode: {self.mode}")
         finally:
-            self._sent_shutdown_signal()
+            self.stop()
 
     def stop(self):
         logger.info("Stopping Reader...")
-        self.running = False
         self._terminate_cic()
+        if self.mode == "live":
+            self._move_to_upload_queue(self._get_file_by_seq(self.file_sequence))
         if self.uploader:
             self.uploader.stop()
 
@@ -166,11 +172,10 @@ class Reader:
         self.uploader.start()
 
     def _stream_csv(self):
-        current_seq = 0
-        logger.info(f"Starting CSV stream from Sequence {current_seq}...")
+        logger.info(f"Starting CSV stream from Sequence {self.file_sequence}...")
 
-        while self.running:
-            csv_path = self._get_file_by_seq(current_seq)
+        while not self.stop_event.is_set():
+            csv_path = self._get_file_by_seq(self.file_sequence)
 
             if not csv_path:
                 time.sleep(0.5)
@@ -181,7 +186,7 @@ class Reader:
 
             with open(csv_path, "r") as f:
                 headers = self._wait_for_header(f)
-                for line in self._follow_file(f, current_seq):
+                for line in self._follow_file(f):
                     if not line.strip():
                         continue
 
@@ -189,26 +194,27 @@ class Reader:
                     if len(record) == len(headers):
                         self.raw_packet_queue.put(dict(zip(headers, record)))
 
-            logger.info(f"Finished file {current_seq}, moving to next.")
-            self._move_to_upload_queue(csv_path)
-            current_seq += 1
+            logger.info(f"Finished file {self.file_sequence}, moving to next.")
+            if not self.stop_event.is_set():
+                self._move_to_upload_queue(csv_path)
+                self.file_sequence += 1
 
     def _wait_for_header(self, file):
         logger.debug("Waiting for feature headers...")
-        while self.running:
+        while not self.stop_event.is_set():
             line = file.readline()
             if line.strip():
                 logger.debug("Headers detected")
                 return line.strip().split(",")
             time.sleep(0.3)
 
-    def _follow_file(self, file, current_seq):
-        while self.running:
+    def _follow_file(self, file):
+        while not self.stop_event.is_set():
             line = file.readline()
             if line:
                 yield line
             else:
-                next_seq = current_seq + 1
+                next_seq = self.file_sequence + 1
                 if self._get_file_by_seq(next_seq):
                     break
                 time.sleep(0.3)
@@ -230,7 +236,7 @@ class Reader:
         logger.info(f"Reading CSV: {csv_path}")
 
         for chunk in pd.read_csv(csv_path, chunksize=5000):
-            if not self.running:
+            if self.stop_event.is_set():
                 break
 
             for record in chunk.to_dict(orient="records"):
@@ -254,4 +260,4 @@ class Reader:
 
     def _sent_shutdown_signal(self):
         self.raw_packet_queue.put(None)
-        logger.info("Reader stopped")
+        logger.debug("Sent shutdown signal to raw packet queue.")
