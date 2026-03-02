@@ -14,6 +14,8 @@ logger = logging.getLogger("MITIGATOR")
 
 # Constants
 IPTABLES_PATH = "/usr/sbin/iptables"
+IPSET_PATH = "/usr/sbin/ipset"
+IPSET_NAME = "ddos_martummai_blocklist"
 SMTP_TIMEOUT = 5
 INVALID_IP = "Unknown"
 LOG_MITIGATION = "[MITIGATION]"
@@ -26,28 +28,61 @@ class Mitigator:
         self.config = config
         self.first_blocking_warning_logged = False
         self.first_email_warning_logged = False
+        if self._ip_blocking_enabled():
+            self._setup_infrastructure()
 
-    def _schedule_unblock(self, ip_address: str) -> None:
-        def unblock() -> None:
-            time.sleep(self.config.mitigation.block_duration_seconds)
-            try:
-                logger.info(f"{LOG_MITIGATION} Unblocking IP: {ip_address}")
+    def _setup_infrastructure(self) -> None:
+        try:
+            subprocess.run(
+                [IPSET_PATH, "create", IPSET_NAME, "hash:ip", "timeout", "0"],
+                stderr=subprocess.DEVNULL,
+                check=False,
+            )  # nosec B603
+
+            check_rule = subprocess.run(
+                [
+                    IPTABLES_PATH,
+                    "-C",
+                    "INPUT",
+                    "-m",
+                    "set",
+                    "--match-set",
+                    IPSET_NAME,
+                    "src",
+                    "-j",
+                    "DROP",
+                ],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )  # nosec B603
+
+            if check_rule.returncode != 0:
                 subprocess.run(
                     [
                         IPTABLES_PATH,
-                        "-D",
+                        "-I",
                         "INPUT",
-                        "-s",
-                        ip_address,
+                        "-m",
+                        "set",
+                        "--match-set",
+                        IPSET_NAME,
+                        "src",
                         "-j",
                         "DROP",
                     ],
-                    check=False,
+                    check=True,
                 )  # nosec B603
-            except Exception as e:
-                logger.error(f"{LOG_ERROR} Error unblocking IP: {e}")
+                logger.info(
+                    f"{LOG_MITIGATION} Infrastructure initialized: ipset '{IPSET_NAME}' linked to iptables."
+                )
 
-        threading.Thread(target=unblock, daemon=False).start()
+        except FileNotFoundError:
+            logger.critical(
+                "ipset or iptables command not found. Please install 'ipset'."
+            )
+            raise
+        except Exception as e:
+            logger.error(f"{LOG_ERROR} Failed to setup infrastructure: {e}")
 
     def _email_alert_enabled(self) -> bool:
         """Check if email alerting is configured."""
@@ -165,45 +200,34 @@ class Mitigator:
         msg = self._create_alert_message(ip_csv_str, flow_info)
         self._send_email_async(msg)
 
-    def _iptables_rule_exists(self, ip_address: str) -> bool:
-        """Check if iptables rule already exists for IP."""
+    def block_ip(self, ip_address: str) -> bool:
+        if not self._ip_blocking_enabled() or not self._valid_ip(ip_address):
+            return False
+
+        duration = self.config.mitigation.block_duration_seconds
+
         try:
             result = subprocess.run(
-                [IPTABLES_PATH, "-C", "INPUT", "-s", ip_address, "-j", "DROP"],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
+                [IPSET_PATH, "add", IPSET_NAME, ip_address, "timeout", str(duration)],
+                capture_output=True,
+                text=True,
+                check=False,
             )  # nosec B603
-            return result.returncode == 0
-        except FileNotFoundError:
-            logger.critical(
-                "iptables command not found. Ensure you are running on Linux as root."
-            )
-            raise
-
-    def _iptables_add_rule(self, ip_address: str) -> None:
-        """Add iptables rule to block IP."""
-        try:
-            subprocess.run(
-                [IPTABLES_PATH, "-A", "INPUT", "-s", ip_address, "-j", "DROP"],
-                check=True,
-            )  # nosec B603
-        except subprocess.CalledProcessError as e:
-            logger.error(f"Error modifying iptables: {e}")
-            raise
-
-    def block_ip(self, ip_address: str) -> None:
-        if not self._ip_blocking_enabled():
-            return
-
-        if not self._valid_ip(ip_address):
-            return
-
-        try:
-            # Check if rule exists to avoid duplicates
-            if not self._iptables_rule_exists(ip_address):
-                logger.info(f"Temporary Blocking IP: {ip_address}")
-                self._iptables_add_rule(ip_address)
-                self._schedule_unblock(ip_address)
-        except FileNotFoundError:
-            # Already logged in _iptables_rule_exists
-            pass
+            if result.returncode == 0:
+                logger.info(
+                    f"{LOG_MITIGATION} IP {ip_address} blocked for {duration} seconds (managed by ipset)."
+                )
+                return True
+            else:
+                if "already added" in result.stderr:
+                    logger.debug(
+                        f"{LOG_MITIGATION} IP {ip_address} is already blocked. Skipping (timeout not reset)."
+                    )
+                else:
+                    logger.error(
+                        f"{LOG_ERROR} Failed to add IP to ipset: {result.stderr.strip()}"
+                    )
+                return False
+        except Exception as e:
+            logger.error(f"{LOG_ERROR} Error modifying ipset: {e}")
+            return False
