@@ -1,12 +1,18 @@
 [Unit]
 Description=DDoS MarTumMai Guard Service
 After=network.target
+StartLimitIntervalSec=60
+StartLimitBurst=3
 
 [Service]
 Type=simple
-User=root
+User=ddos-martummai
+Group=ddos-martummai
 WorkingDirectory=/opt/ddos-martummai
-ExecStart=/opt/ddos-martummai/.venv/bin/ddos-martummai
+ExecStart=/usr/bin/ddos-martummai
+
+AmbientCapabilities=CAP_NET_RAW CAP_NET_ADMIN
+CapabilityBoundingSet=CAP_NET_RAW CAP_NET_ADMIN
 
 Restart=on-failure
 RestartSec=5

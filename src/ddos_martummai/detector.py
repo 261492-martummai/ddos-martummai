@@ -1,8 +1,10 @@
+from __future__ import annotations
+
 import logging
 import sys
 import time
+from multiprocessing import Queue
 from pathlib import Path
-from queue import Queue
 
 import joblib
 import numpy as np
@@ -43,7 +45,7 @@ class DDoSDetector:
             self._predict_batch(batch)
 
     def _load_model(self, model_path: Path):
-        logger.info(f"Loading Internal Model from: {model_path}")
+        logger.debug(f"Loading Internal Model from: {model_path}")
 
         if not model_path.exists():
             logger.error(f"[FATAL] Model file not found at {model_path}")
@@ -159,8 +161,10 @@ class DDoSDetector:
                     ):
                         log = f"[SLOW ATTACK] {ip} | PPS: {pps:.2f}, Ratio: {attack_ratio:.2f}"
                         logger.warning(log)
+
                         self.mitigator.block_ip(ip)
                         self.mitigator.send_alert(ip, log)
+
                         del self.ip_memory[ip]
                         continue
 
@@ -173,8 +177,10 @@ class DDoSDetector:
             ):
                 log = f"[BURST ATTACK] {ip} | Count: {row['count']}, Ratio: {row['mean']:.2f}"
                 logger.warning(log)
-                self.mitigator.block_ip(str(ip))
+
+                self.mitigator.block_ip(ip)
                 self.mitigator.send_alert(ip, log)
+
                 if ip in self.ip_memory:
                     del self.ip_memory[ip]
 
@@ -193,12 +199,13 @@ class DDoSDetector:
     ):
         """Helper to block top heavy-hitters during global flood"""
         top_ips = results.groupby("ip").size().sort_values(ascending=False).head(limit)
-        ips_to_block = top_ips.index.astype(str)
+        ips_to_block = top_ips.index.astype(str).tolist()
+
         for ip in ips_to_block:
             self.mitigator.block_ip(ip)
 
         text = f"Global Botnet Attack - Top Offenders Blocked with Attack Ratio: {global_attack_ratio:.2f} and IP Diversity: {ip_diversity:.2f}"
-        self.mitigator.send_alert(ips_to_block.tolist(), text)
+        self.mitigator.send_alert(ips_to_block, text)
 
     def _cleanup_memory(self, now):
         """Prevent Memory Leaks by removing stale IPs"""

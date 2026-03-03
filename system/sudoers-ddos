@@ -1,0 +1,2 @@
+# Allow ddos-user to execute iptables and ipset without a password
+ddos-martummai ALL=(ALL) NOPASSWD: /usr/sbin/iptables, /usr/sbin/ipset, /sbin/iptables, /sbin/ipset

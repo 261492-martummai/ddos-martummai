@@ -2,20 +2,32 @@
 set -e
 
 APP_NAME="ddos-martummai"
+APP_USER="ddos-martummai"
 APP_DIR="/opt/$APP_NAME"
 CONFIG_DIR="/etc/$APP_NAME"
 LOG_DIR="/var/log/$APP_NAME"
 DATA_DIR="/var/lib/$APP_NAME"
+
+echo "[*] Creating dedicated system user '$APP_USER'..."
+# Create the user only if it doesn't already exist.
+# --system: creates a system account (no password expiration, etc.)
+# --no-create-home & --shell /usr/sbin/nologin: prevents actual logins for security
+if ! id "$APP_USER" &>/dev/null; then
+    useradd --system --no-create-home --shell /usr/sbin/nologin "$APP_USER"
+fi
 
 echo "[*] Setting up directories..."
 mkdir -p "$CONFIG_DIR"
 mkdir -p "$LOG_DIR"
 mkdir -p "$DATA_DIR"
 
-chown -R root:root "$CONFIG_DIR" "$LOG_DIR" "$DATA_DIR" "$APP_DIR"
+echo "[*] Setting ownership and permissions for Privilege Separation..."
+# The dedicated user MUST own these directories to read configs and write logs/data
+chown -R "$APP_USER:$APP_USER" "$CONFIG_DIR" "$LOG_DIR" "$DATA_DIR" "$APP_DIR"
 chmod 750 "$CONFIG_DIR"
 chmod 750 "$LOG_DIR"
 chmod 750 "$DATA_DIR"
+chmod 755 "$APP_DIR"
 
 export PATH="/root/.local/bin:/root/.cargo/bin:$PATH"
 
@@ -29,7 +41,16 @@ fi
 echo "[*] Load DDoS MarTumMai Dependencies..."
 if [ -d "$APP_DIR" ]; then
     cd "$APP_DIR" || exit 1
+    export UV_PYTHON_INSTALL_DIR="$APP_DIR/.python-versions"
+    export UV_CACHE_DIR="$APP_DIR/.uv-cache"
+    # Run uv sync. This will create the .venv directory
     uv sync --frozen
+    
+    # VERY IMPORTANT: Since root ran 'uv sync', the .venv belongs to root.
+    # We must change its ownership to our dedicated user so the app can use it.
+    echo "[*] Fixing virtual environment ownership..."
+    chown -R "$APP_USER:$APP_USER" "$APP_DIR/.venv"
+    
 else
     echo "Error: Application directory $APP_DIR not found!"
     exit 1

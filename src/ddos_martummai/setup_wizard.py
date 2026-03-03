@@ -1,3 +1,5 @@
+import os
+import shutil
 import socket
 from dataclasses import asdict
 from pathlib import Path
@@ -14,6 +16,7 @@ from ddos_martummai.util.path_helper import get_app_paths
 
 console = Console()
 APP_PATHS = get_app_paths()
+USER = "ddos-martummai"
 
 
 class SetupWizard:
@@ -170,8 +173,31 @@ class SetupWizard:
 
             config_dict = asdict(self.app_config)
 
+            # 1. Write the configuration to the file (created as root)
             with self.config_path.open("w", encoding="utf-8") as f:
                 yaml.dump(config_dict, f)
+
+            # 2. Apply Privilege Separation File Permissions
+            try:
+                # Transfer ownership to the dedicated service user
+                shutil.chown(self.config_path, user=USER, group=USER)
+
+                # Restrict permissions:
+                # 6 (Owner/ddos-user): Read & Write
+                # 4 (Group/ddos-user): Read only
+                # 4 (Others): Read only
+                os.chmod(self.config_path, 0o644)
+
+            except LookupError:
+                # Fallback for local development if the dedicated service user does not exist yet
+                console.print(
+                    f"\n[yellow]Warning: System user '{USER}' not found. "
+                    "Skipping ownership transfer (Safe to ignore in local dev).[/yellow]"
+                )
+            except Exception as perm_err:
+                console.print(
+                    f"\n[yellow]Warning: Failed to set file permissions: {perm_err}[/yellow]"
+                )
 
             console.print(
                 f"\n[bold green]Configuration saved to: {self.config_path}[/bold green]"

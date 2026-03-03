@@ -1,2 +1,2 @@
 #!/bin/bash
-/opt/ddos-martummai/.venv/bin/ddos-martummai "$@"
+exec /opt/ddos-martummai/.venv/bin/python /opt/ddos-martummai/.venv/bin/ddos-martummai "$@"
