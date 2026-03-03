@@ -19,11 +19,15 @@ from ddos_martummai.web.drift_monitor import (
 )
 from ddos_martummai.web.router import router
 
+mitigation_events: deque[dict] = deque(maxlen=20)
+
 app = FastAPI()
 current_dir = Path(__file__).parent.resolve()
 app.mount("/static", StaticFiles(directory=current_dir / "static"), name="static")
 
 app.include_router(router)
+
+mitigation_events: deque[dict] = deque(maxlen=20)
 
 # ===================== CONFIGURATION =====================
 BW_WINDOW = 60  # seconds of bandwidth history
@@ -51,6 +55,19 @@ _tcp_bytes_sec: int = 0
 _udp_bytes_sec: int = 0
 _last_timestamp: str = ""
 
+
+def push_mitigation_event(ip: str):
+    mitigation_events.appendleft(
+        {"ip": ip, "time": time.strftime("%H:%M:%S"), "type": "block"}
+    )
+
+
+def push_mitigation_event(ip: str):
+    mitigation_events.appendleft({
+        "ip": ip,
+        "time": time.strftime("%H:%M:%S"),
+        "type": "block"
+    })
 
 def extract_transport(pkt) -> tuple[str | None, int | None, str]:
     """Return (proto, dport, flags) from a scapy packet."""
@@ -209,6 +226,11 @@ async def websocket_endpoint(
                     "ports": ports_snapshot,
                     "table": [asdict(r) for r in table],
                     "drift": current_drift,
+<<<<<<< HEAD
+                    "mitigations": list(mitigation_events),
+=======
+		    "mitigations": list(mitigation_events)
+>>>>>>> 1179d57 (New Alert Window)
                 }
             await websocket.send_json(payload)
             await asyncio.sleep(1)

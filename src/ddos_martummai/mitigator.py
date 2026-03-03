@@ -5,10 +5,11 @@ import threading
 import time
 from email.mime.text import MIMEText
 from typing import List, Union
-
+from ddos_martummai.web.monitor import push_mitigation_event
 import psutil
 
 from ddos_martummai.init_models import AppConfig
+from ddos_martummai.web.monitor import push_mitigation_event
 
 logger = logging.getLogger("MITIGATOR")
 
