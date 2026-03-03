@@ -185,18 +185,19 @@ def main(config_file, test_mode, file_path, override_env, setup, verbose):
     logger.info(f"Initializing modules in mode: {mode}")
 
     # 3. Initialize modules and threads
-    NM_PORT: int = int(os.getenv("NM_PORT", "8000"))
-    t_web = threading.Thread(
-        target=lambda: uvicorn.run(
-            app,
-            host="0.0.0.0",  # nosec B104
-            port=NM_PORT,
-            log_config=uvicorn_log(),
-        ),
-        daemon=True,
-    )
-    t_web.start()
-    monitor.start()
+    if mode == "live":
+        NM_PORT: int = int(os.getenv("NM_PORT", "8000"))
+        t_web = threading.Thread(
+            target=lambda: uvicorn.run(
+                app,
+                host="0.0.0.0",  # nosec B104
+                port=NM_PORT,
+                log_config=uvicorn_log(),
+            ),
+            daemon=True,
+        )
+        t_web.start()
+        monitor.start()
 
     raw_packet_queue = Queue(maxsize=20000)
     cleaned_packet_queue = Queue(maxsize=20000)

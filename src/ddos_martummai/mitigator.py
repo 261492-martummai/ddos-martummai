@@ -5,7 +5,7 @@ import threading
 import time
 from email.mime.text import MIMEText
 from typing import List, Union
-from ddos_martummai.web.monitor import push_mitigation_event
+
 import psutil
 
 from ddos_martummai.init_models import AppConfig
@@ -69,6 +69,7 @@ class Mitigator:
                 logger.info(
                     f"{LOG_MITIGATION} IP {ip_address} blocked for {duration} seconds (managed by ipset)."
                 )
+                push_mitigation_event(ip_address)
                 return True
             else:
                 if "already added" in result.stderr:

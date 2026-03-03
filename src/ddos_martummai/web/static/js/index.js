@@ -467,7 +467,6 @@ function connect() {
 
     const drift = data.drift ?? 0;
 
-<<<<<<< HEAD
     // อัปเดตกราฟ Drift
     driftChart.data.labels.push(""); // ไม่ใส่ label เวลาเพื่อให้กราฟไหลไปเรื่อยๆ
     driftChart.data.datasets[0].data.push(drift);
@@ -491,40 +490,15 @@ function connect() {
       } else {
         driftEl.style.color = "var(--accent)";
         driftEl.classList.remove("drift-alert");
-=======
-          if (drift > 0.45) {
-              driftEl.classList.add("visible");
-              driftEl.textContent = `DRIFT: ${drift.toFixed(3)}`;
-              
-              // จัดการสีตามระดับความอันตราย (ของเดิมที่คุณมี)
-              if (drift > 0.6) {
-                  driftEl.style.color = "#ff3b3b";
-                  driftEl.classList.add("drift-alert");
-              } else if (drift > 0.5) {
-                  driftEl.style.color = "#ffaa00";
-                  driftEl.classList.remove("drift-alert");
-              } else {
-                  driftEl.style.color = "var(--accent)";
-                  driftEl.classList.remove("drift-alert");
-              }
-          } else {
-              driftEl.classList.remove("visible");
-          }
-
-	  // ── Mitigation Alert ─────────────────────
-	  if (data.mitigations && data.mitigations.length > 0) {
-  	      const latest = data.mitigations[0];
-  	      showMitigationAlert(latest.ip, latest.time);
-	  }
-        };
->>>>>>> 1179d57 (New Alert Window)
       }
+
     } else {
       driftEl.classList.remove("visible");
     }
+
     // ── Mitigation Alert ─────────────────────
-    if (data.mitigations && data.mitigations.length > 0) {
-      const latest = data.mitigations[0];
+    if (data.mitigations) {
+      const latest = data.mitigations;
       showMitigationAlert(latest.ip, latest.time);
     }
   };
@@ -681,7 +655,6 @@ function toggleTheme() {
 
 document.getElementById("theme-btn").addEventListener("click", toggleTheme);
 
-<<<<<<< HEAD
 // Restore saved preference on load
 const savedTheme = localStorage.getItem("nm-theme");
 
@@ -706,26 +679,3 @@ function showMitigationAlert(ip, time) {
 if (savedTheme && savedTheme !== currentTheme) toggleTheme();
 
 connect();
-=======
-      // Restore saved preference on load
-      const savedTheme = localStorage.getItem("nm-theme");
-      if (savedTheme && savedTheme !== currentTheme) toggleTheme();
-      function showMitigationAlert(ip, time) {
-  const alertBox = document.createElement("div");
-  alertBox.className = "mitigation-popup";
-  alertBox.innerHTML = `
-    🚨 IP BLOCKED
-    <br>
-    <strong>${ip}</strong>
-    <br>
-    <small>${time}</small>
-  `;
-
-  document.body.appendChild(alertBox);
-
-  	setTimeout(() => {
-    alertBox.remove();
-  }, 5000);
-      }
-      connect();
->>>>>>> 1179d57 (New Alert Window)

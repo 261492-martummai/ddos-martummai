@@ -670,18 +670,13 @@ tr.new-row {
   color: white;
   padding: 15px 20px;
   border-radius: 6px;
-<<<<<<< HEAD
   font-family: "Share Tech Mono", monospace;
-=======
-  font-family: 'Share Tech Mono', monospace;
->>>>>>> 1179d57 (New Alert Window)
   box-shadow: 0 0 15px rgba(255, 0, 0, 0.5);
   z-index: 9999;
   animation: fadeIn 0.3s ease;
 }
 
 @keyframes fadeIn {
-<<<<<<< HEAD
   from {
     opacity: 0;
     transform: translateY(10px);
@@ -690,8 +685,4 @@ tr.new-row {
     opacity: 1;
     transform: translateY(0);
   }
-=======
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
->>>>>>> 1179d57 (New Alert Window)
 }

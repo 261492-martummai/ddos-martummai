@@ -10,7 +10,7 @@ from fastapi import Cookie, FastAPI, WebSocket, WebSocketDisconnect, status
 from fastapi.staticfiles import StaticFiles
 from scapy.all import IP, TCP, UDP, sniff  # type: ignore
 
-from ddos_martummai.init_models import FlowStats, TableRow
+from ddos_martummai.init_models import BlockDetail, FlowStats, TableRow
 from ddos_martummai.web.authen import _validate_session
 from ddos_martummai.web.drift_monitor import (
     check_auto_baseline,
@@ -43,6 +43,7 @@ pkt_rate_udp: deque[int] = deque(maxlen=BW_WINDOW)  # packets/sec UDP
 bw_labels: deque[str] = deque(maxlen=BW_WINDOW)
 ports_counter: DefaultDict[int, int] = defaultdict(int)
 ports_snapshot: dict[int, int] = {}
+block_detail: deque[BlockDetail] = deque(maxlen=20)
 flows: dict[tuple, FlowStats] = {}
 table: deque[TableRow] = deque(maxlen=20)
 flow_counter: int = 0
@@ -56,18 +57,17 @@ _udp_bytes_sec: int = 0
 _last_timestamp: str = ""
 
 
-def push_mitigation_event(ip: str):
-    mitigation_events.appendleft(
-        {"ip": ip, "time": time.strftime("%H:%M:%S"), "type": "block"}
-    )
+def push_mitigation_event(ip_address: str) -> None:
+    event = BlockDetail(ip=ip_address, time=time.strftime("%H:%M:%S"))
+    block_detail.appendleft(event)
 
 
-def push_mitigation_event(ip: str):
-    mitigation_events.appendleft({
-        "ip": ip,
-        "time": time.strftime("%H:%M:%S"),
-        "type": "block"
-    })
+def check_mitigations() -> Optional[dict]:
+    if block_detail:
+        mitigation_event = block_detail.pop()
+        return asdict(mitigation_event)
+    return None
+
 
 def extract_transport(pkt) -> tuple[str | None, int | None, str]:
     """Return (proto, dport, flags) from a scapy packet."""
@@ -217,6 +217,8 @@ async def websocket_endpoint(
 
                 check_auto_baseline(current_drift)
 
+                mitigation_alerts = check_mitigations()
+
                 payload = {
                     "bandwidth_tcp": list(bandwidth_tcp),
                     "bandwidth_udp": list(bandwidth_udp),
@@ -226,12 +228,9 @@ async def websocket_endpoint(
                     "ports": ports_snapshot,
                     "table": [asdict(r) for r in table],
                     "drift": current_drift,
-<<<<<<< HEAD
-                    "mitigations": list(mitigation_events),
-=======
-		    "mitigations": list(mitigation_events)
->>>>>>> 1179d57 (New Alert Window)
+                    "mitigations": mitigation_alerts,
                 }
+
             await websocket.send_json(payload)
             await asyncio.sleep(1)
     except WebSocketDisconnect:
