@@ -30,6 +30,7 @@ class MitigationConfig:
     smtp_port: int = 587
     smtp_user: str = ""
     smtp_password: str = ""
+    alert_cooldown_seconds: int = 300
 
 
 @dataclass

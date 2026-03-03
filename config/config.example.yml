@@ -31,6 +31,7 @@ mitigation:
   smtp_port: 587
   smtp_user: ""
   smtp_password: ""
+  alert_cooldown_seconds: 300
 
 detector:
   # Global Botnet
