@@ -28,8 +28,60 @@ class Mitigator:
         self.config = config
         self.first_blocking_warning_logged = False
         self.first_email_warning_logged = False
+        self.alert_cache: dict[str, float] = {}
+        self.alert_cooldown_seconds = config.mitigation.alert_cooldown_seconds
+
         if self._ip_blocking_enabled():
             self._setup_infrastructure()
+
+    def send_alert(self, ip_address: Union[str, List[str]], flow_info: str) -> None:
+        if not self._email_alert_enabled():
+            return
+
+        ip_list = [ip_address] if isinstance(ip_address, str) else ip_address
+
+        ips_to_alert = self._filter_ips_for_alert(ip_list)
+
+        if not ips_to_alert:
+            return
+
+        ip_csv_str = ", ".join(ips_to_alert)
+
+        logger.info(f"Initiating email alert for {ip_csv_str}...")
+        msg = self._create_alert_message(ip_csv_str, flow_info)
+        self._send_email_async(msg)
+
+    def block_ip(self, ip_address: str) -> bool:
+        if not self._ip_blocking_enabled() or not self._valid_ip(ip_address):
+            return False
+
+        duration = self.config.mitigation.block_duration_seconds
+
+        try:
+            result = subprocess.run(
+                [IPSET_PATH, "add", IPSET_NAME, ip_address, "timeout", str(duration)],
+                capture_output=True,
+                text=True,
+                check=False,
+            )  # nosec B603
+            if result.returncode == 0:
+                logger.info(
+                    f"{LOG_MITIGATION} IP {ip_address} blocked for {duration} seconds (managed by ipset)."
+                )
+                return True
+            else:
+                if "already added" in result.stderr:
+                    logger.debug(
+                        f"{LOG_MITIGATION} IP {ip_address} is already blocked. Skipping (timeout not reset)."
+                    )
+                else:
+                    logger.error(
+                        f"{LOG_ERROR} Failed to add IP to ipset: {result.stderr.strip()}"
+                    )
+                return False
+        except Exception as e:
+            logger.error(f"{LOG_ERROR} Error modifying ipset: {e}")
+            return False
 
     def _setup_infrastructure(self) -> None:
         try:
@@ -180,54 +232,27 @@ class Mitigator:
         # Run in thread to not block main processing
         threading.Thread(target=send_async, daemon=False).start()
 
-    def send_alert(self, ip_address: Union[str, List[str]], flow_info: str) -> None:
-        if not self._email_alert_enabled():
-            return
+    def _filter_ips_for_alert(self, ip_list: List[str]) -> List[str]:
+        now = time.time()
+        valid_ips = []
 
-        if isinstance(ip_address, str):
-            ip_list = [ip_address]
-        else:
-            ip_list = ip_address
+        for ip in ip_list:
+            if not self._valid_ip(ip):
+                continue
 
-        valid_ips = [ip for ip in ip_list if self._valid_ip(ip)]
+            if ip in self.alert_cache:
+                if now - self.alert_cache[ip] < self.alert_cooldown_seconds:
+                    logger.debug(f"{LOG_ALERT} Muted alert for {ip} (Cooldown active).")
+                    continue
 
-        if not valid_ips:
-            return
+            self.alert_cache[ip] = now
+            valid_ips.append(ip)
 
-        ip_csv_str = ", ".join(valid_ips)
+        # Cleanup old entries in alert cache
+        self.alert_cache = {
+            k: v
+            for k, v in self.alert_cache.items()
+            if now - v < self.alert_cooldown_seconds
+        }
 
-        logger.info(f"Initiating email alert for {ip_csv_str}...")
-        msg = self._create_alert_message(ip_csv_str, flow_info)
-        self._send_email_async(msg)
-
-    def block_ip(self, ip_address: str) -> bool:
-        if not self._ip_blocking_enabled() or not self._valid_ip(ip_address):
-            return False
-
-        duration = self.config.mitigation.block_duration_seconds
-
-        try:
-            result = subprocess.run(
-                [IPSET_PATH, "add", IPSET_NAME, ip_address, "timeout", str(duration)],
-                capture_output=True,
-                text=True,
-                check=False,
-            )  # nosec B603
-            if result.returncode == 0:
-                logger.info(
-                    f"{LOG_MITIGATION} IP {ip_address} blocked for {duration} seconds (managed by ipset)."
-                )
-                return True
-            else:
-                if "already added" in result.stderr:
-                    logger.debug(
-                        f"{LOG_MITIGATION} IP {ip_address} is already blocked. Skipping (timeout not reset)."
-                    )
-                else:
-                    logger.error(
-                        f"{LOG_ERROR} Failed to add IP to ipset: {result.stderr.strip()}"
-                    )
-                return False
-        except Exception as e:
-            logger.error(f"{LOG_ERROR} Error modifying ipset: {e}")
-            return False
+        return valid_ips

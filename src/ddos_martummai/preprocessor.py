@@ -155,7 +155,8 @@ def load_scaler(scaler_path: str) -> MinMaxScaler:
     if not Path(scaler_path).exists():
         raise FileNotFoundError(f"Scaler not found at {scaler_path}")
     scaler = joblib.load(scaler_path)
-    logger.info(f"Scaler loaded from {scaler_path}")
+    logger.debug(f"Scaler loaded from {scaler_path}")
+    logger.info("Scaler loaded successfully.")
     return scaler
 
 
@@ -173,13 +174,11 @@ class DDoSPreprocessor:
         batch_size: int,
         raw_packet_queue: Queue[dict | None],
         cleaned_packet_queue: Queue[pd.DataFrame | None],
-        stop_event,
     ):
         self.scaler = load_scaler(scaler_path)
         self.batch_size = batch_size
         self.raw_packet_queue: Queue[dict | None] = raw_packet_queue
         self.cleaned_packet_queue: Queue[pd.DataFrame | None] = cleaned_packet_queue
-        self.stop_event = stop_event
 
     def start(self):
         """
@@ -194,13 +193,13 @@ class DDoSPreprocessor:
         buffer = []
 
         try:
-            while not self.stop_event.is_set():
+            while True:
                 try:
-                    packet = self.raw_packet_queue.get(timeout=0.5)
+                    packet = self.raw_packet_queue.get(timeout=0.3)
 
                     if packet is None:
                         logger.info(
-                            "Received sentinel (None) from upstream. Stopping..."
+                            "Received sentinel signal from upstream. Stopping..."
                         )
                         break
 
@@ -244,7 +243,7 @@ class DDoSPreprocessor:
 
     def stop(self):
         self.cleaned_packet_queue.put(None)
-        logger.info("Preprocessor stopped.")
+        logger.info("Preprocessor Stopped.")
 
     def flush_buffer(self, buffer: list) -> bool:
         """

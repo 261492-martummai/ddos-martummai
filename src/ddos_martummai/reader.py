@@ -61,6 +61,8 @@ class Reader:
             self._move_to_upload_queue(self._get_file_by_seq(self.file_sequence))
         if self.uploader:
             self.uploader.stop()
+        self._sent_shutdown_signal()
+        logger.info("Reader Stopped.")
 
     # ---------- Mode Handlers ----------
 
@@ -220,6 +222,9 @@ class Reader:
                 time.sleep(0.3)
 
     def _get_file_by_seq(self, seq):
+        if not self.cic_output_dir:
+            return None
+
         pattern = f"*_flow_data_{seq}.csv"
         found_files = list(self.cic_output_dir.glob(pattern))
 

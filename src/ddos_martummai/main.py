@@ -20,7 +20,7 @@ from ddos_martummai.preprocessor import DDoSPreprocessor
 from ddos_martummai.reader import Reader
 from ddos_martummai.setup_wizard import SetupWizard
 from ddos_martummai.util.constant import CONTEXT_SETTINGS
-from ddos_martummai.util.os_checker import is_root_privileged
+from ddos_martummai.util.os_checker import has_required_privileges
 from ddos_martummai.util.path_helper import get_app_paths
 from ddos_martummai.web import monitor
 from ddos_martummai.web.monitor import app
@@ -44,9 +44,7 @@ def run_reader(config, mode, out_queue, stop_event, file_path=None, verbose=Fals
         pass
 
 
-def run_preprocessor(
-    scaler_path, batch_size, in_queue, out_queue, stop_event, verbose=False
-):
+def run_preprocessor(scaler_path, batch_size, in_queue, out_queue, verbose=False):
     signal.signal(signal.SIGINT, signal.SIG_IGN)
     get_console_logger(logging.DEBUG if verbose else logging.INFO)
 
@@ -56,7 +54,6 @@ def run_preprocessor(
             batch_size=batch_size,
             raw_packet_queue=in_queue,
             cleaned_packet_queue=out_queue,
-            stop_event=stop_event,
         )
         preprocessor.start()
     except KeyboardInterrupt:
@@ -135,16 +132,30 @@ def main(config_file, test_mode, file_path, override_env, setup, verbose):
             click.echo("Error: Unsupported file format. Use .pcap or .csv")
             sys.exit(1)
     else:
-        if not is_root_privileged():
+        # Check privileges dynamically based on the 'setup' flag
+        if not has_required_privileges(is_setup_mode=setup):
             click.secho(
-                "\nError: Real-time Monitor and Setup mode requires root privileges!",
+                "\nError: Insufficient privileges to run this mode!",
                 fg="red",
                 bold=True,
             )
-            click.secho(
-                "   This mode captures live network packets and setting /etc config files, which require elevated permissions.",
-                fg="yellow",
-            )
+
+            # Show specific error messages to guide the user
+            if setup:
+                click.secho(
+                    "   Setup mode requires root privileges to write configuration files.",
+                    fg="yellow",
+                )
+            else:
+                click.secho(
+                    "   Real-time Monitor captures live network packets, which requires elevated permissions.",
+                    fg="yellow",
+                )
+                click.secho(
+                    "   (Must be run as 'root' or the 'ddos-martummai' systemd service user).",
+                    fg="yellow",
+                )
+
             click.secho("   Please run with: ", nl=False, fg="yellow")
             click.secho(f"sudo {' '.join(sys.argv)}", fg="green", bold=True)
             sys.exit(1)
@@ -198,7 +209,6 @@ def main(config_file, test_mode, file_path, override_env, setup, verbose):
         app_config.model.batch_size,
         raw_packet_queue,
         cleaned_packet_queue,
-        stop_event,
         verbose,
     )
     det_args = (model_path, app_config, cleaned_packet_queue, verbose)

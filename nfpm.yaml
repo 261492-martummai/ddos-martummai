@@ -40,6 +40,12 @@ contents:
     dst: /usr/bin/ddos-martummai
     file_info:
       mode: 0755
+  
+  - src: ./system/sudoers-ddos
+    dst: /etc/sudoers.d/ddos-martummai
+    type: config
+    file_info:
+      mode: 0440
 
 scripts:
   postinstall: ./system/postinstall.sh
