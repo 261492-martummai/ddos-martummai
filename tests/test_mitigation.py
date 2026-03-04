@@ -1,5 +1,6 @@
 import logging
 from email.mime.text import MIMEText
+from multiprocessing import Queue
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -37,9 +38,14 @@ def mock_app_config():
 
 
 @pytest.fixture
-def mitigator(mock_app_config):
+def mock_mitigation_event_queue():
+    return Queue()
+
+
+@pytest.fixture
+def mitigator(mock_app_config, mock_mitigation_event_queue):
     with patch("ddos_martummai.mitigator.subprocess.run"):
-        return Mitigator(mock_app_config)
+        return Mitigator(mock_app_config, mock_mitigation_event_queue)
 
 
 # ==========================================
