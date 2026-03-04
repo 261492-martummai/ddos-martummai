@@ -29,10 +29,11 @@ class DDoSDetector:
         model_path: Path,
         config: AppConfig,
         cleaned_packet_queue: Queue[pd.DataFrame | None],
+        mitigation_event_queue: Queue[dict[str, str]],
     ):
         self.config = config.detector
         self.model = self._load_model(model_path)
-        self.mitigator = Mitigator(config)
+        self.mitigator = Mitigator(config, mitigation_event_queue)
         self.cleaned_packet_queue = cleaned_packet_queue
         self.batch_size = config.model.batch_size
         self.ip_memory: dict[str, dict[str, float]] = {}

@@ -60,13 +60,16 @@ def run_preprocessor(scaler_path, batch_size, in_queue, out_queue, verbose=False
         pass
 
 
-def run_detector(model_path, config, in_queue, verbose=False):
+def run_detector(model_path, config, in_queue, mitigation_event_queue, verbose=False):
     signal.signal(signal.SIGINT, signal.SIG_IGN)
     get_console_logger(logging.DEBUG if verbose else logging.INFO)
 
     try:
         detector = DDoSDetector(
-            model_path=model_path, config=config, cleaned_packet_queue=in_queue
+            model_path=model_path,
+            config=config,
+            cleaned_packet_queue=in_queue,
+            mitigation_event_queue=mitigation_event_queue,
         )
         detector.start()
     except KeyboardInterrupt:
@@ -185,6 +188,7 @@ def main(config_file, test_mode, file_path, override_env, setup, verbose):
     logger.info(f"Initializing modules in mode: {mode}")
 
     # 3. Initialize modules and threads
+    mitigation_event_queue = Queue(maxsize=1000)
     if mode == "live":
         NM_PORT: int = int(os.getenv("NM_PORT", "8000"))
         t_web = threading.Thread(
@@ -197,10 +201,11 @@ def main(config_file, test_mode, file_path, override_env, setup, verbose):
             daemon=True,
         )
         t_web.start()
+        monitor.set_mitigation_queue(mitigation_event_queue)
         monitor.start()
 
-    raw_packet_queue = Queue(maxsize=20000)
-    cleaned_packet_queue = Queue(maxsize=20000)
+    raw_packet_queue = Queue(maxsize=100000)
+    cleaned_packet_queue = Queue(maxsize=50000)
 
     stop_event = Event()
 
@@ -212,7 +217,13 @@ def main(config_file, test_mode, file_path, override_env, setup, verbose):
         cleaned_packet_queue,
         verbose,
     )
-    det_args = (model_path, app_config, cleaned_packet_queue, verbose)
+    det_args = (
+        model_path,
+        app_config,
+        cleaned_packet_queue,
+        mitigation_event_queue,
+        verbose,
+    )
 
     p_reader = Process(target=run_reader, args=reader_args, name="ReaderProcess")
     p_prep = Process(target=run_preprocessor, args=prep_args, name="PrepProcess")

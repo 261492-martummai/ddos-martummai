@@ -420,85 +420,87 @@ function connect() {
   ws.onerror = () => ws.close();
 
   ws.onmessage = (e) => {
-    const data = JSON.parse(e.data);
+    const payload = JSON.parse(e.data);
 
-    // ── bandwidth: update data + compute new Y target ──
-    bwChart.data.labels = data.bw_labels;
-    bwChart.data.datasets[0].data = data.bandwidth_tcp; // TCP
-    bwChart.data.datasets[1].data = data.bandwidth_udp; // UDP
+    if (payload.type === "telemetry") {
+      const data = payload.data;
 
-    const peakTcp = Math.max(...data.bandwidth_tcp, 0);
-    const peakUdp = Math.max(...data.bandwidth_udp, 0);
-    const peak = Math.max(peakTcp, peakUdp);
+      // ── bandwidth: update data + compute new Y target ──
+      bwChart.data.labels = data.bw_labels;
+      bwChart.data.datasets[0].data = data.bandwidth_tcp; // TCP
+      bwChart.data.datasets[1].data = data.bandwidth_udp; // UDP
 
-    // Target = peak + 20% headroom, floored at 500 so chart never collapses
-    yTarget = Math.max(500, peak * 1.2);
-    bwChart.update("none");
+      const peakTcp = Math.max(...data.bandwidth_tcp, 0);
+      const peakUdp = Math.max(...data.bandwidth_udp, 0);
+      const peak = Math.max(peakTcp, peakUdp);
 
-    // ── request rate: update data + compute new Y target ──
-    rateChart.data.labels = data.bw_labels;
-    rateChart.data.datasets[0].data = data.pkt_rate_tcp; // TCP
-    rateChart.data.datasets[1].data = data.pkt_rate_udp; // UDP
+      // Target = peak + 20% headroom, floored at 500 so chart never collapses
+      yTarget = Math.max(500, peak * 1.2);
+      bwChart.update("none");
 
-    const peakRateTcp = Math.max(...data.pkt_rate_tcp, 0);
-    const peakRateUdp = Math.max(...data.pkt_rate_udp, 0);
-    const peakRate = Math.max(peakRateTcp, peakRateUdp);
+      // ── request rate: update data + compute new Y target ──
+      rateChart.data.labels = data.bw_labels;
+      rateChart.data.datasets[0].data = data.pkt_rate_tcp; // TCP
+      rateChart.data.datasets[1].data = data.pkt_rate_udp; // UDP
 
-    yTargetRate = Math.max(50, peakRate * 1.2);
-    rateChart.update("none");
+      const peakRateTcp = Math.max(...data.pkt_rate_tcp, 0);
+      const peakRateUdp = Math.max(...data.pkt_rate_udp, 0);
+      const peakRate = Math.max(peakRateTcp, peakRateUdp);
 
-    // ── ports ──────────────────────────────────────────
-    const portKeys = Object.keys(data.ports);
-    const portVals = Object.values(data.ports);
-    const portColors = portKeys.map((p) => `hsl(${(p * 47) % 360},70%,55%)`);
+      yTargetRate = Math.max(50, peakRate * 1.2);
+      rateChart.update("none");
 
-    portChart.data.labels = portKeys;
-    portChart.data.datasets[0].data = portVals;
-    portChart.data.datasets[0].backgroundColor = portColors;
+      // ── ports ──────────────────────────────────────────
+      const portKeys = Object.keys(data.ports);
+      const portVals = Object.values(data.ports);
+      const portColors = portKeys.map((p) => `hsl(${(p * 47) % 360},70%,55%)`);
 
-    // Nudge Y max to current data max + 2
-    const portMax = Math.max(...portVals, 5);
-    portChart.options.scales.y.max = portMax + 2;
-    portChart.update("none");
+      portChart.data.labels = portKeys;
+      portChart.data.datasets[0].data = portVals;
+      portChart.data.datasets[0].backgroundColor = portColors;
 
-    // ── table ──────────────────────────────────────────
-    renderTable(data.table);
+      // Nudge Y max to current data max + 2
+      const portMax = Math.max(...portVals, 5);
+      portChart.options.scales.y.max = portMax + 2;
+      portChart.update("none");
 
-    const drift = data.drift ?? 0;
+      // ── table ──────────────────────────────────────────
+      renderTable(data.table);
 
-    // อัปเดตกราฟ Drift
-    driftChart.data.labels.push(""); // ไม่ใส่ label เวลาเพื่อให้กราฟไหลไปเรื่อยๆ
-    driftChart.data.datasets[0].data.push(drift);
-    if (driftChart.data.labels.length > 50) {
-      driftChart.data.labels.shift();
-      driftChart.data.datasets[0].data.shift();
-    }
-    driftChart.update("none");
+      const drift = data.drift ?? 0;
 
-    if (drift > 0.45) {
-      driftEl.classList.add("visible");
-      driftEl.textContent = `DRIFT: ${drift.toFixed(3)}`;
-
-      // จัดการสีตามระดับความอันตราย (ของเดิมที่คุณมี)
-      if (drift > 0.6) {
-        driftEl.style.color = "#ff3b3b";
-        driftEl.classList.add("drift-alert");
-      } else if (drift > 0.5) {
-        driftEl.style.color = "#ffaa00";
-        driftEl.classList.remove("drift-alert");
-      } else {
-        driftEl.style.color = "var(--accent)";
-        driftEl.classList.remove("drift-alert");
+      // อัปเดตกราฟ Drift
+      driftChart.data.labels.push(""); // ไม่ใส่ label เวลาเพื่อให้กราฟไหลไปเรื่อยๆ
+      driftChart.data.datasets[0].data.push(drift);
+      if (driftChart.data.labels.length > 50) {
+        driftChart.data.labels.shift();
+        driftChart.data.datasets[0].data.shift();
       }
+      driftChart.update("none");
 
-    } else {
-      driftEl.classList.remove("visible");
+      if (drift > 0.45) {
+        driftEl.classList.add("visible");
+        driftEl.textContent = `DRIFT: ${drift.toFixed(3)}`;
+
+        // จัดการสีตามระดับความอันตราย
+        if (drift > 0.6) {
+          driftEl.style.color = "#ff3b3b";
+          driftEl.classList.add("drift-alert");
+        } else if (drift > 0.5) {
+          driftEl.style.color = "#ffaa00";
+          driftEl.classList.remove("drift-alert");
+        } else {
+          driftEl.style.color = "var(--accent)";
+          driftEl.classList.remove("drift-alert");
+        }
+
+      } else {
+        driftEl.classList.remove("visible");
+      }
     }
-
-    // ── Mitigation Alert ─────────────────────
-    if (data.mitigations) {
-      const latest = data.mitigations;
-      showMitigationAlert(latest.ip, latest.time);
+    else if (payload.type === "alert") {
+      const alertData = payload.data;
+      showMitigationAlert(alertData.ip, alertData.time);
     }
   };
 }
