@@ -1,14 +1,18 @@
+from __future__ import annotations
+
 import logging
 import smtplib
 import subprocess  # nosec B404
 import threading
 import time
+from dataclasses import asdict
 from email.mime.text import MIMEText
+from multiprocessing import Queue
 from typing import List, Union
 
 import psutil
 
-from ddos_martummai.init_models import AppConfig
+from ddos_martummai.init_models import AppConfig, BlockDetail
 
 logger = logging.getLogger("MITIGATOR")
 
@@ -24,8 +28,11 @@ LOG_ERROR = "[!]"
 
 
 class Mitigator:
-    def __init__(self, config: AppConfig):
+    def __init__(
+        self, config: AppConfig, mitigation_event_queue: Queue[dict[str, str]]
+    ):
         self.config = config
+        self.mitigation_event_queue = mitigation_event_queue
         self.first_blocking_warning_logged = False
         self.first_email_warning_logged = False
         self.alert_cache: dict[str, float] = {}
@@ -68,6 +75,7 @@ class Mitigator:
                 logger.info(
                     f"{LOG_MITIGATION} IP {ip_address} blocked for {duration} seconds (managed by ipset)."
                 )
+                self._push_mitigation_event(ip_address)
                 return True
             else:
                 if "already added" in result.stderr:
@@ -256,3 +264,10 @@ class Mitigator:
         }
 
         return valid_ips
+
+    def _push_mitigation_event(self, ip_address: str) -> None:
+        try:
+            event_data = BlockDetail(ip=ip_address, time=time.strftime("%H:%M:%S"))
+            self.mitigation_event_queue.put(asdict(event_data))
+        except Exception as e:
+            logger.error(f"Failed to push mitigation event: {e}")

@@ -2,7 +2,6 @@
 
 SERVICE_NAME="ddos-martummai.service"
 APP_DIR="/opt/ddos-martummai"
-APP_USER="ddos-martummai"
 
 # The $1 variable tells us the action apt is performing.
 # We only want to stop services and delete environment files on "remove" or "purge",
@@ -22,6 +21,8 @@ if [ "$1" = "remove" ] || [ "$1" = "purge" ]; then
         
         # Remove the virtual environment that we manually created in postinstall.sh
         rm -rf "$APP_DIR/.venv"
+        rm -rf "$APP_DIR/.uv-cache"
+        rm -rf "$APP_DIR/.python-versions"
     fi
 fi
 

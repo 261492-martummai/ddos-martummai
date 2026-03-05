@@ -96,3 +96,9 @@ class TableRow:
 class LoginRequest(BaseModel):
     username: str
     password: str
+
+
+@dataclass
+class BlockDetail:
+    ip: str
+    time: str

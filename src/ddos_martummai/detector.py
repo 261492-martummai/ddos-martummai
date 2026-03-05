@@ -3,10 +3,10 @@ from __future__ import annotations
 import logging
 import sys
 import time
-import warnings
 from multiprocessing import Queue
 from pathlib import Path
 
+import ddos_martummai.runtime_patch  # noqa: F401 # ruff: isort: skip
 import joblib
 import numpy as np
 import pandas as pd
@@ -15,10 +15,6 @@ from ddos_martummai.init_models import AppConfig
 from ddos_martummai.mitigator import Mitigator
 from ddos_martummai.util.constant import IP_COLUMN_NAME
 from ddos_martummai.web.drift_monitor import update_meta_prob
-
-warnings.filterwarnings(
-    "ignore", message=".*sklearn.utils.parallel.delayed.*", category=UserWarning
-)
 
 logger = logging.getLogger("DETECTOR")
 
@@ -29,10 +25,11 @@ class DDoSDetector:
         model_path: Path,
         config: AppConfig,
         cleaned_packet_queue: Queue[pd.DataFrame | None],
+        mitigation_event_queue: Queue[dict[str, str]],
     ):
         self.config = config.detector
         self.model = self._load_model(model_path)
-        self.mitigator = Mitigator(config)
+        self.mitigator = Mitigator(config, mitigation_event_queue)
         self.cleaned_packet_queue = cleaned_packet_queue
         self.batch_size = config.model.batch_size
         self.ip_memory: dict[str, dict[str, float]] = {}

@@ -6,6 +6,7 @@ from pathlib import Path
 from queue import Empty
 from typing import Dict, Tuple
 
+import ddos_martummai.runtime_patch  # noqa: F401 # ruff: isort: skip
 import joblib
 import numpy as np
 import pandas as pd

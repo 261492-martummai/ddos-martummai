@@ -1,5 +1,4 @@
 import hmac
-import os
 from pathlib import Path
 from typing import Optional
 
@@ -21,8 +20,6 @@ from ddos_martummai.web.drift_monitor import save_baseline
 # ===================== ROUTER SETUP =====================
 router = APIRouter()
 current_dir = Path(__file__).parent.resolve()
-NM_HOST: str = os.getenv("NM_HOST", "localhost")
-NM_PORT: int = int(os.getenv("NM_PORT", "8000"))
 
 
 # ===================== PAGE ROUTES =====================
@@ -53,14 +50,6 @@ def monitor_page():
     # Read HTML template
     with open(html_path, "r", encoding="utf-8") as f:
         html_content = f.read()
-
-    config_script = f"""
-            <script>
-                window.NM_HOST = "{NM_HOST}";
-                window.NM_PORT = "{NM_PORT}";
-            </script>
-        </head>"""
-    html_content = html_content.replace("</head>", config_script)
 
     return HTMLResponse(
         content=html_content,

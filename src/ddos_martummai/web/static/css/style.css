@@ -425,15 +425,21 @@ header {
 /* --- ML Drift Alert Animation --- */
 @keyframes drift-pulse {
   0% {
-    text-shadow: 0 0 5px #ff3b3b, 0 0 10px #ff3b3b;
+    text-shadow:
+      0 0 5px #ff3b3b,
+      0 0 10px #ff3b3b;
     color: #ff3b3b;
   }
   50% {
-    text-shadow: 0 0 20px #ff0000, 0 0 30px #ff0000;
+    text-shadow:
+      0 0 20px #ff0000,
+      0 0 30px #ff0000;
     color: #ffffff;
   }
   100% {
-    text-shadow: 0 0 5px #ff3b3b, 0 0 10px #ff3b3b;
+    text-shadow:
+      0 0 5px #ff3b3b,
+      0 0 10px #ff3b3b;
     color: #ff3b3b;
   }
 }
@@ -453,13 +459,20 @@ header {
   background: transparent;
   color: var(--accent); /* ใช้สี Cyan เดิมของระบบ */
   border: 1px solid var(--accent);
-  font-family: 'Share Tech Mono', monospace;
+  font-family: "Share Tech Mono", monospace;
   padding: 5px 15px;
   cursor: pointer;
   transition: all 0.3s ease;
   margin-right: 10px;
   font-size: 0.8rem;
-  clip-path: polygon(10% 0, 100% 0, 100% 70%, 90% 100%, 0 100%, 0 30%); /* ทรงเหลี่ยมเท่ๆ */
+  clip-path: polygon(
+    10% 0,
+    100% 0,
+    100% 70%,
+    90% 100%,
+    0 100%,
+    0 30%
+  ); /* ทรงเหลี่ยมเท่ๆ */
 }
 
 .baseline-btn-color:hover {
@@ -478,12 +491,12 @@ header {
 }
 
 #drift-status {
-    display: none;
-    transition: all 0.5s ease-in-out;
+  display: none;
+  transition: all 0.5s ease-in-out;
 }
 
 #drift-status.visible {
-    display: inline-block;
+  display: inline-block;
 }
 
 /* ---- Main grid ---- */
@@ -512,7 +525,6 @@ header {
   grid-row: span 5 / span 5;
   grid-row-start: 6;
 }
-
 
 .panel {
   background: var(--panel);
@@ -648,4 +660,29 @@ td:nth-child(8) {
 }
 tr.new-row {
   animation: rowIn 0.25s ease forwards;
+}
+
+.mitigation-popup {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  background: #ff3b3b;
+  color: white;
+  padding: 15px 20px;
+  border-radius: 6px;
+  font-family: "Share Tech Mono", monospace;
+  box-shadow: 0 0 15px rgba(255, 0, 0, 0.5);
+  z-index: 9999;
+  animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }

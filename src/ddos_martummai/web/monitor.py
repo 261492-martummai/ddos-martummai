@@ -1,7 +1,9 @@
 import asyncio
+import queue
 import threading
 import time
 from collections import defaultdict, deque
+from contextlib import asynccontextmanager
 from dataclasses import asdict
 from pathlib import Path
 from typing import DefaultDict, Optional
@@ -19,13 +21,9 @@ from ddos_martummai.web.drift_monitor import (
 )
 from ddos_martummai.web.router import router
 
-app = FastAPI()
-current_dir = Path(__file__).parent.resolve()
-app.mount("/static", StaticFiles(directory=current_dir / "static"), name="static")
-
-app.include_router(router)
-
-# ===================== CONFIGURATION =====================
+# ==========================================
+# CONFIGURATION & GLOBAL STATE
+# ==========================================
 BW_WINDOW = 60  # seconds of bandwidth history
 FLOW_WINDOW = 10  # flows before resetting port counters
 
@@ -37,11 +35,15 @@ bandwidth_udp: deque[int] = deque(maxlen=BW_WINDOW)
 pkt_rate_tcp: deque[int] = deque(maxlen=BW_WINDOW)  # packets/sec TCP
 pkt_rate_udp: deque[int] = deque(maxlen=BW_WINDOW)  # packets/sec UDP
 bw_labels: deque[str] = deque(maxlen=BW_WINDOW)
+
 ports_counter: DefaultDict[int, int] = defaultdict(int)
 ports_snapshot: dict[int, int] = {}
 flows: dict[tuple, FlowStats] = {}
 table: deque[TableRow] = deque(maxlen=20)
 flow_counter: int = 0
+
+mitigation_event_queue = None
+active_connections: set[WebSocket] = set()
 
 # Packet counting for rate calculation
 _last_second: int = int(time.time())
@@ -52,6 +54,9 @@ _udp_bytes_sec: int = 0
 _last_timestamp: str = ""
 
 
+# ==========================================
+# CORE LOGIC / HELPER FUNCTIONS
+# ==========================================
 def extract_transport(pkt) -> tuple[str | None, int | None, str]:
     """Return (proto, dport, flags) from a scapy packet."""
     if TCP in pkt:
@@ -181,6 +186,53 @@ def start() -> None:
     threading.Thread(target=capture, daemon=True).start()
 
 
+def set_mitigation_queue(queue) -> None:
+    global mitigation_event_queue
+    mitigation_event_queue = queue
+
+
+# ==========================================
+# BACKGROUND TASKS
+# ==========================================
+async def broadcast_mitigations_bg():
+    while True:
+        if mitigation_event_queue is not None:
+            try:
+                alert = mitigation_event_queue.get_nowait()
+                payload = {"type": "alert", "data": alert}
+
+                disconnected = set()
+                for ws in active_connections:
+                    try:
+                        await ws.send_json(payload)
+                    except WebSocketDisconnect:
+                        disconnected.add(ws)
+
+                for ws in disconnected:
+                    active_connections.discard(ws)
+
+            except queue.Empty:
+                pass
+        await asyncio.sleep(0.3)
+
+
+# ==========================================
+# FASTAPI APP INIT & LIFESPAN
+# ==========================================
+@asynccontextmanager
+async def app_lifespan(app: FastAPI):
+    bg_task = asyncio.create_task(broadcast_mitigations_bg())
+    yield
+    bg_task.cancel()
+
+
+app = FastAPI(lifespan=app_lifespan)
+
+current_dir = Path(__file__).parent.resolve()
+app.mount("/static", StaticFiles(directory=current_dir / "static"), name="static")
+app.include_router(router)
+
+
 # ===================== WEBSOCKET API =====================
 @app.websocket("/ws")
 async def websocket_endpoint(
@@ -193,6 +245,8 @@ async def websocket_endpoint(
         return
 
     await websocket.accept()
+    active_connections.add(websocket)
+
     try:
         while True:
             with _lock:
@@ -201,16 +255,21 @@ async def websocket_endpoint(
                 check_auto_baseline(current_drift)
 
                 payload = {
-                    "bandwidth_tcp": list(bandwidth_tcp),
-                    "bandwidth_udp": list(bandwidth_udp),
-                    "pkt_rate_tcp": list(pkt_rate_tcp),
-                    "pkt_rate_udp": list(pkt_rate_udp),
-                    "bw_labels": list(bw_labels),
-                    "ports": ports_snapshot,
-                    "table": [asdict(r) for r in table],
-                    "drift": current_drift,
+                    "type": "telemetry",
+                    "data": {
+                        "bandwidth_tcp": list(bandwidth_tcp),
+                        "bandwidth_udp": list(bandwidth_udp),
+                        "pkt_rate_tcp": list(pkt_rate_tcp),
+                        "pkt_rate_udp": list(pkt_rate_udp),
+                        "bw_labels": list(bw_labels),
+                        "ports": ports_snapshot,
+                        "table": [asdict(r) for r in table],
+                        "drift": current_drift,
+                    },
                 }
             await websocket.send_json(payload)
             await asyncio.sleep(1)
     except WebSocketDisconnect:
         pass
+    finally:
+        active_connections.discard(websocket)

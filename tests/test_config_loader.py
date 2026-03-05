@@ -241,7 +241,6 @@ def test_interactive_wizard_success(mock_config_file, mock_app_config):
     with (
         patch("sys.stdin.isatty", return_value=True),
         patch("ddos_martummai.config_loader.SetupWizard") as MockWizard,
-        patch.object(loader, "_setup_logger"),  # Skip actual logger setup
     ):
         # Mock Wizard returns True (Success)
         MockWizard.return_value.run.return_value = True
@@ -267,27 +266,6 @@ def test_interactive_wizard_cancelled(mock_config_file, mock_app_config):
             loader._validate_config()
 
         assert exc.value.code == 1
-
-
-def test_setup_logger_called(mock_config_file, mock_app_config):
-    loader = DDoSConfigLoader(mock_config_file)
-    loader.app_config = mock_app_config
-
-    with patch("ddos_martummai.config_loader.attach_file_logging") as mock_logger:
-        loader._setup_logger()
-        mock_logger.assert_called_once_with(
-            loader.app_config.system.log_file_path, loader.test_mode
-        )
-
-
-def test_setup_logger_not_called_when_no_log_path(mock_config_file, mock_app_config):
-    loader = DDoSConfigLoader(mock_config_file)
-    loader.app_config = mock_app_config
-    loader.app_config.system.log_file_path = ""
-
-    with patch("ddos_martummai.config_loader.attach_file_logging") as mock_logger:
-        loader._setup_logger()
-        mock_logger.assert_not_called()
 
 
 def test_config_loader_successful_full_flow(tmp_path, monkeypatch):
@@ -336,9 +314,6 @@ def test_config_loader_successful_full_flow(tmp_path, monkeypatch):
 
     # --- 2. ACT ---
 
-    # We need to mock two external dependencies to avoid side effects:
-    # 1. APP_PATHS: To force the system to use our temporary test paths.
-    # 2. attach_file_logging: To verify it's called without creating real log files.
     with (
         patch.dict(
             "ddos_martummai.config_loader.APP_PATHS",
@@ -349,7 +324,6 @@ def test_config_loader_successful_full_flow(tmp_path, monkeypatch):
                 "token_file": mock_token_file,
             },
         ),
-        patch("ddos_martummai.config_loader.attach_file_logging") as mock_logger_setup,
     ):
         # Initialize loader with environment override enabled
         loader = DDoSConfigLoader(mock_config_file, override_env=True)
@@ -382,11 +356,5 @@ def test_config_loader_successful_full_flow(tmp_path, monkeypatch):
         assert mock_data_dir.exists()
         assert mock_log_file.parent.exists()
 
-        # 3.4 Verify Side Effects (Logger setup was called)
-        # Should be called with the resolved log path from APP_PATHS
-        mock_logger_setup.assert_called_once_with(
-            expected_log_path, False
-        )  # Assuming test_mode=False for this test
-
-        # 3.5 Verify internal state consistency
+        # 3.4 Verify internal state consistency
         assert loader.config_file == mock_config_file

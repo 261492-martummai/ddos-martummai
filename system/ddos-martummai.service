@@ -9,7 +9,7 @@ Type=simple
 User=ddos-martummai
 Group=ddos-martummai
 WorkingDirectory=/opt/ddos-martummai
-ExecStart=/usr/bin/ddos-martummai
+ExecStart=/opt/ddos-martummai/.venv/bin/python /opt/ddos-martummai/.venv/bin/ddos-martummai
 
 AmbientCapabilities=CAP_NET_RAW CAP_NET_ADMIN
 CapabilityBoundingSet=CAP_NET_RAW CAP_NET_ADMIN
