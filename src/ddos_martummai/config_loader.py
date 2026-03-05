@@ -13,7 +13,6 @@ from ddos_martummai.init_models import (
     ModelConfig,
     SystemConfig,
 )
-from ddos_martummai.logger import attach_file_logging
 from ddos_martummai.setup_wizard import SetupWizard
 from ddos_martummai.util.path_helper import get_app_paths
 
@@ -39,7 +38,6 @@ class DDoSConfigLoader:
         self._inject_detector_settings()
         self._check_override_env()
         self._validate_config()
-        self._setup_logger()
 
         logger.info("Configuration Loaded Successfully")
         return self.app_config
@@ -215,10 +213,3 @@ class DDoSConfigLoader:
                     "Please run 'ddos-martummai' manually to setup configuration first."
                 )
                 sys.exit(1)
-
-    def _setup_logger(self):
-        log_path = self.app_config.system.log_file_path
-        if log_path:
-            attach_file_logging(log_path, self.test_mode)
-        else:
-            logger.warning("No log file path configured. Logging to console only.")

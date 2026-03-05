@@ -1,2 +1,5 @@
 #!/bin/bash
-exec /opt/ddos-martummai/.venv/bin/python /opt/ddos-martummai/.venv/bin/ddos-martummai "$@"
+PYTHON_BIN="/opt/ddos-martummai/.venv/bin/python"
+APP_BIN="/opt/ddos-martummai/.venv/bin/ddos-martummai"
+
+exec "$PYTHON_BIN" "$APP_BIN" "$@"

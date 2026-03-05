@@ -14,7 +14,7 @@ from click_option_group import optgroup
 from ddos_martummai.config_loader import DDoSConfigLoader
 from ddos_martummai.detector import DDoSDetector
 from ddos_martummai.init_models import AppConfig
-from ddos_martummai.logger import get_console_logger
+from ddos_martummai.logger import setup_main_logger, setup_worker_logger
 from ddos_martummai.logger import setup_uvicorn_logging as uvicorn_log
 from ddos_martummai.preprocessor import DDoSPreprocessor
 from ddos_martummai.reader import Reader
@@ -28,10 +28,11 @@ from ddos_martummai.web.monitor import app
 APP_PATHS = get_app_paths()
 
 
-def run_reader(config, mode, out_queue, stop_event, file_path=None, verbose=False):
+def run_reader(
+    config, mode, out_queue, stop_event, log_queue, file_path=None, verbose=False
+):
     signal.signal(signal.SIGINT, signal.SIG_IGN)
-    get_console_logger(logging.DEBUG if verbose else logging.INFO)
-
+    setup_worker_logger(log_queue, logging.DEBUG if verbose else logging.INFO)
     try:
         reader = Reader(
             config=config, mode=mode, raw_packet_queue=out_queue, stop_event=stop_event
@@ -44,10 +45,11 @@ def run_reader(config, mode, out_queue, stop_event, file_path=None, verbose=Fals
         pass
 
 
-def run_preprocessor(scaler_path, batch_size, in_queue, out_queue, verbose=False):
+def run_preprocessor(
+    scaler_path, batch_size, in_queue, out_queue, log_queue, verbose=False
+):
     signal.signal(signal.SIGINT, signal.SIG_IGN)
-    get_console_logger(logging.DEBUG if verbose else logging.INFO)
-
+    setup_worker_logger(log_queue, logging.DEBUG if verbose else logging.INFO)
     try:
         preprocessor = DDoSPreprocessor(
             scaler_path=scaler_path,
@@ -60,10 +62,11 @@ def run_preprocessor(scaler_path, batch_size, in_queue, out_queue, verbose=False
         pass
 
 
-def run_detector(model_path, config, in_queue, mitigation_event_queue, verbose=False):
+def run_detector(
+    model_path, config, in_queue, mitigation_event_queue, log_queue, verbose=False
+):
     signal.signal(signal.SIGINT, signal.SIG_IGN)
-    get_console_logger(logging.DEBUG if verbose else logging.INFO)
-
+    setup_worker_logger(log_queue, logging.DEBUG if verbose else logging.INFO)
     try:
         detector = DDoSDetector(
             model_path=model_path,
@@ -74,6 +77,70 @@ def run_detector(model_path, config, in_queue, mitigation_event_queue, verbose=F
         detector.start()
     except KeyboardInterrupt:
         pass
+
+
+def check_privileges(setup_mode: bool):
+    if not has_required_privileges(is_setup_mode=setup_mode):
+        click.secho(
+            "\nError: Insufficient privileges to run this mode!", fg="red", bold=True
+        )
+        if setup_mode:
+            click.secho("   Setup mode requires root privileges.", fg="yellow")
+        else:
+            click.secho(
+                "   Real-time Monitor requires elevated permissions.", fg="yellow"
+            )
+            click.secho(
+                "   (Must be run as 'root' or systemd service user).",
+                fg="yellow",
+            )
+        click.secho("   Please run with: ", nl=False, fg="yellow")
+        click.secho(f"sudo {' '.join(sys.argv)}", fg="green", bold=True)
+        sys.exit(1)
+
+
+def start_web_server(mitigation_queue: Queue):
+    NM_PORT = int(os.getenv("NM_PORT", "8000"))
+    t_web = threading.Thread(
+        target=lambda: uvicorn.run(
+            app,
+            host="0.0.0.0",  # nosec B104
+            port=NM_PORT,
+            log_config=uvicorn_log(),
+        ),
+        daemon=True,
+    )
+    t_web.start()
+    monitor.set_mitigation_queue(mitigation_queue)
+    monitor.start()
+
+
+def monitor_processes(mode, processes, logger):
+    p_reader, p_prep, p_det = processes
+    while True:
+        time.sleep(1)
+        reader_died = not p_reader.is_alive()
+        prep_died = not p_prep.is_alive()
+        det_died = not p_det.is_alive()
+
+        if mode == "live":
+            if reader_died or prep_died or det_died:
+                logger.critical(
+                    "CRITICAL ERROR: A core service thread has died unexpectedly!"
+                )
+                if reader_died:
+                    logger.critical(" -> Reader Service: DEAD")
+                if prep_died:
+                    logger.critical(" -> Preprocessor Service: DEAD")
+                if det_died:
+                    logger.critical(" -> Detector Service: DEAD")
+                raise RuntimeError("System integrity compromised.")
+        else:
+            if det_died:
+                logger.info("File processing completed (Detector finished).")
+                break
+            if prep_died and not reader_died:
+                logger.warning("Preprocessor died prematurely!")
 
 
 @click.command(context_settings=CONTEXT_SETTINGS)
@@ -114,8 +181,15 @@ def main(config_file, test_mode, file_path, override_env, setup, verbose):
     """
     DDoS MarTumMai Guard: A Fine-Tuned Machine Learning DDoS detection system.
     """
-    config_file = Path(config_file) if config_file else APP_PATHS["config_file"]
 
+    # Set umask to 007 (resulting in 660 file permissions).
+    # This ensures that ALL files spawned by this application grant read/write
+    # permissions to both 'root' (Owner) and the 'ddos-martummai' user (Group),
+    # while blocking access from other unauthorized users.
+    os.umask(0o007)
+
+    # Setup Program Mode and Privileges
+    config_file = Path(config_file) if config_file else APP_PATHS["config_file"]
     mode = "live"
     if test_mode:
         if not file_path:
@@ -135,34 +209,9 @@ def main(config_file, test_mode, file_path, override_env, setup, verbose):
             click.echo("Error: Unsupported file format. Use .pcap or .csv")
             sys.exit(1)
     else:
-        # Check privileges dynamically based on the 'setup' flag
-        if not has_required_privileges(is_setup_mode=setup):
-            click.secho(
-                "\nError: Insufficient privileges to run this mode!",
-                fg="red",
-                bold=True,
-            )
+        check_privileges(setup)
 
-            # Show specific error messages to guide the user
-            if setup:
-                click.secho(
-                    "   Setup mode requires root privileges to write configuration files.",
-                    fg="yellow",
-                )
-            else:
-                click.secho(
-                    "   Real-time Monitor captures live network packets, which requires elevated permissions.",
-                    fg="yellow",
-                )
-                click.secho(
-                    "   (Must be run as 'root' or the 'ddos-martummai' systemd service user).",
-                    fg="yellow",
-                )
-
-            click.secho("   Please run with: ", nl=False, fg="yellow")
-            click.secho(f"sudo {' '.join(sys.argv)}", fg="green", bold=True)
-            sys.exit(1)
-
+    # Setup Wizard Mode
     if setup:
         wizard = SetupWizard(config_file, AppConfig())
         success = wizard.run()
@@ -171,50 +220,54 @@ def main(config_file, test_mode, file_path, override_env, setup, verbose):
         else:
             sys.exit(1)
 
-    logger = get_console_logger(logging.DEBUG if verbose else logging.INFO)
-    logger.name = "MAIN"
-    logger.info("Starting DDoS Martummai Guard System...")
-
     # 1. Load Config First
     loader = DDoSConfigLoader(config_file, override_env, test_mode)
     app_config = loader.load()
 
-    # 2. Find model and scaler paths relative to this file
+    # 2. Setup Logging
+    log_level = logging.DEBUG if verbose else logging.INFO
+    log_queue, log_listener = setup_main_logger(
+        level=log_level,
+        log_file_path=app_config.system.log_file_path,
+        test_mode=test_mode,
+    )
+    log_listener.start()
+
+    logger = logging.getLogger("MAIN")
+    logger.info("Starting DDoS Martummai Guard System...")
+    logger.info(f"Initializing modules in mode: {mode}")
+
+    # 3. Find model and scaler paths relative to this file
     current_dir = Path(__file__).parent.resolve()
     ml_dir = current_dir / "ml"
     model_path = ml_dir / "model.joblib"
     scaler_path = ml_dir / "scaler.joblib"
 
-    logger.info(f"Initializing modules in mode: {mode}")
-
-    # 3. Initialize modules and threads
+    # 4. Setup multiprocessing queues and events
     mitigation_event_queue = Queue(maxsize=1000)
-    if mode == "live":
-        NM_PORT: int = int(os.getenv("NM_PORT", "8000"))
-        t_web = threading.Thread(
-            target=lambda: uvicorn.run(
-                app,
-                host="0.0.0.0",  # nosec B104
-                port=NM_PORT,
-                log_config=uvicorn_log(),
-            ),
-            daemon=True,
-        )
-        t_web.start()
-        monitor.set_mitigation_queue(mitigation_event_queue)
-        monitor.start()
-
     raw_packet_queue = Queue(maxsize=100000)
     cleaned_packet_queue = Queue(maxsize=50000)
-
     stop_event = Event()
 
-    reader_args = (app_config, mode, raw_packet_queue, stop_event, file_path, verbose)
+    if mode == "live":
+        start_web_server(mitigation_event_queue)
+
+    # 5. Start worker processes
+    reader_args = (
+        app_config,
+        mode,
+        raw_packet_queue,
+        stop_event,
+        log_queue,
+        file_path,
+        verbose,
+    )
     prep_args = (
         scaler_path,
         app_config.model.batch_size,
         raw_packet_queue,
         cleaned_packet_queue,
+        log_queue,
         verbose,
     )
     det_args = (
@@ -222,6 +275,7 @@ def main(config_file, test_mode, file_path, override_env, setup, verbose):
         app_config,
         cleaned_packet_queue,
         mitigation_event_queue,
+        log_queue,
         verbose,
     )
 
@@ -230,40 +284,12 @@ def main(config_file, test_mode, file_path, override_env, setup, verbose):
     p_det = Process(target=run_detector, args=det_args, name="DetProcess")
 
     logger.info("Starting worker processes...")
-    p_det.start()
-    p_prep.start()
-    p_reader.start()
+    processes = (p_reader, p_prep, p_det)
+    for p in processes:
+        p.start()
 
     try:
-        while True:
-            time.sleep(1)
-
-            reader_died = not p_reader.is_alive()
-            prep_died = not p_prep.is_alive()
-            det_died = not p_det.is_alive()
-
-            if mode == "live":
-                if reader_died or prep_died or det_died:
-                    logger.critical(
-                        "CRITICAL ERROR: A core service thread has died unexpectedly!"
-                    )
-                    if reader_died:
-                        logger.critical(" -> Reader Service: DEAD")
-                    if prep_died:
-                        logger.critical(" -> Preprocessor Service: DEAD")
-                    if det_died:
-                        logger.critical(" -> Detector Service: DEAD")
-
-                    raise RuntimeError("System integrity compromised.")
-
-            else:
-                if det_died:
-                    logger.info("File processing completed (Detector finished).")
-                    break
-
-                if prep_died and not reader_died:
-                    logger.warning("Preprocessor died prematurely!")
-
+        monitor_processes(mode, processes, logger)
     except (KeyboardInterrupt, RuntimeError) as e:
         if isinstance(e, RuntimeError):
             logger.error(f"Initiating EMERGENCY SHUTDOWN due to: {e}")
@@ -281,13 +307,14 @@ def main(config_file, test_mode, file_path, override_env, setup, verbose):
 
         logger.info("Waiting for worker processes to finish")
 
-        p_reader.join()
-        p_prep.join()
-        p_det.join()
+        for p in processes:
+            p.join()
 
         logger.info("--- All systems shutdown safely ---")
         if isinstance(e, RuntimeError):
             sys.exit(1)
+    finally:
+        log_listener.stop()
 
 
 if __name__ == "__main__":

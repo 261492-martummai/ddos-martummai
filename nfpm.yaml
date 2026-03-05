@@ -4,7 +4,7 @@ platform: "linux"
 version: "${VERSION}"
 section: "admin"
 priority: "optional"
-maintainer: "Your Name <email@example.com>"
+maintainer: "Martummai Team"
 description: "DDoS Detection System using Machine Learning"
 vendor: "CPE CMU"
 license: "MIT"
@@ -27,7 +27,6 @@ contents:
 
   - src: ./config/config.example.yml
     dst: /opt/ddos-martummai/config.example.yml
-    type: config
 
   - src: ./system/logrotate.conf
     dst: /etc/logrotate.d/ddos-martummai
@@ -50,10 +49,9 @@ contents:
 scripts:
   postinstall: ./system/postinstall.sh
   preremove: ./system/preremove.sh
+  postremove: ./system/postremove.sh
 
 depends:
   - libpcap-dev
-  - python3
-  - python3-venv
   - iptables
   - ipset

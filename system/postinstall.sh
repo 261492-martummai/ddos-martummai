@@ -20,14 +20,23 @@ echo "[*] Setting up directories..."
 mkdir -p "$CONFIG_DIR"
 mkdir -p "$LOG_DIR"
 mkdir -p "$DATA_DIR"
+mkdir -p "$DATA_DIR/cic" "$DATA_DIR/upload_queue"
 
 echo "[*] Setting ownership and permissions for Privilege Separation..."
 # The dedicated user MUST own these directories to read configs and write logs/data
-chown -R "$APP_USER:$APP_USER" "$CONFIG_DIR" "$LOG_DIR" "$DATA_DIR" "$APP_DIR"
-chmod 750 "$CONFIG_DIR"
-chmod 750 "$LOG_DIR"
-chmod 750 "$DATA_DIR"
+chown -R root:root "$APP_DIR"
 chmod 755 "$APP_DIR"
+
+chown -R root:"$APP_USER" "$CONFIG_DIR"
+chmod 750 "$CONFIG_DIR"
+
+chown -R "$APP_USER:$APP_USER" "$LOG_DIR"
+chmod 2770 "$LOG_DIR"
+
+chown -R "$APP_USER:$APP_USER" "$DATA_DIR"
+chmod 2770 "$DATA_DIR"
+chmod 2770 "$DATA_DIR/cic"
+chmod 2770 "$DATA_DIR/upload_queue"
 
 export PATH="/root/.local/bin:/root/.cargo/bin:$PATH"
 

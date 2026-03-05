@@ -180,13 +180,13 @@ class SetupWizard:
             # 2. Apply Privilege Separation File Permissions
             try:
                 # Transfer ownership to the dedicated service user
-                shutil.chown(self.config_path, user=USER, group=USER)
+                shutil.chown(self.config_path, user="root", group=USER)
 
                 # Restrict permissions:
-                # 6 (Owner/ddos-user): Read & Write
-                # 4 (Group/ddos-user): Read only
-                # 4 (Others): Read only
-                os.chmod(self.config_path, 0o644)
+                # 6 (Owner/root): Read & Write
+                # 4 (Group/ddos-martummai): Read only
+                # 0 (Others): No access
+                os.chmod(self.config_path, 0o640)
 
             except LookupError:
                 # Fallback for local development if the dedicated service user does not exist yet
